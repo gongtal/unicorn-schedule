@@ -1,77 +1,97 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from datetime import datetime, timedelta
-import sqlite3
+import gspread
+import json
 import os
 
 app = Flask(__name__)
-DB_PATH = os.environ.get('DB_PATH', os.path.join(os.path.dirname(__file__), 'schedule.db'))
 
+SPREADSHEET_ID = os.environ.get('SPREADSHEET_ID', '1c8vUU9XshrPFD6OzrXyoEmOKIl4mS-jow3P_p0w-p1Q')
 WEEKDAY_NAMES = ['월', '화', '수', '목', '금', '토', '일']
 
-
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+# Google Sheets 인증
+SERVICE_ACCOUNT_FILE = os.path.join(os.path.dirname(__file__), 'service-account.json')
+SERVICE_ACCOUNT_INFO = os.environ.get('GOOGLE_CREDENTIALS', '')
 
 
-def init_db():
-    conn = get_db()
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS schedules (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT NOT NULL,
-            time TEXT NOT NULL,
-            max_slots INTEGER NOT NULL DEFAULT 1,
-            closed INTEGER NOT NULL DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE TABLE IF NOT EXISTS bookings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            schedule_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            phone TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (schedule_id) REFERENCES schedules(id)
-        );
-    ''')
-    # closed 컬럼이 없으면 추가 (기존 DB 호환)
-    try:
-        conn.execute('SELECT closed FROM schedules LIMIT 1')
-    except sqlite3.OperationalError:
-        conn.execute('ALTER TABLE schedules ADD COLUMN closed INTEGER NOT NULL DEFAULT 0')
-        conn.commit()
-    conn.close()
+def get_gc():
+    if SERVICE_ACCOUNT_INFO:
+        import json as _json
+        info = _json.loads(SERVICE_ACCOUNT_INFO)
+        return gspread.service_account_from_dict(info)
+    else:
+        return gspread.service_account(filename=SERVICE_ACCOUNT_FILE)
+
+
+def get_schedules_ws():
+    gc = get_gc()
+    sh = gc.open_by_key(SPREADSHEET_ID)
+    return sh.worksheet('schedules')
+
+
+def get_bookings_ws():
+    gc = get_gc()
+    sh = gc.open_by_key(SPREADSHEET_ID)
+    return sh.worksheet('bookings')
+
+
+def get_all_schedules():
+    ws = get_schedules_ws()
+    records = ws.get_all_records()
+    return records
+
+
+def get_all_bookings():
+    ws = get_bookings_ws()
+    records = ws.get_all_records()
+    return records
+
+
+def next_id(ws):
+    values = ws.col_values(1)  # id 컬럼
+    if len(values) <= 1:
+        return 1
+    ids = [int(v) for v in values[1:] if v]
+    return max(ids) + 1 if ids else 1
 
 
 # ── 수강생 페이지 ──
 
 @app.route('/')
 def index():
-    conn = get_db()
-    rows = conn.execute('''
-        SELECT s.id, s.date, s.time, s.max_slots,
-               COUNT(b.id) as booked
-        FROM schedules s
-        LEFT JOIN bookings b ON b.schedule_id = s.id
-        WHERE s.closed = 0 AND s.date >= date('now')
-        GROUP BY s.id
-        HAVING booked < s.max_slots
-        ORDER BY s.date, s.time
-    ''').fetchall()
-    conn.close()
+    schedules = get_all_schedules()
+    bookings = get_all_bookings()
+    today = datetime.now().strftime('%Y-%m-%d')
 
-    import json
+    # 각 스케줄별 예약 수 계산
+    booking_counts = {}
+    for b in bookings:
+        sid = str(b['schedule_id'])
+        booking_counts[sid] = booking_counts.get(sid, 0) + 1
+
     schedule_data = {}
-    for r in rows:
-        d = r['date']
+    for s in schedules:
+        if str(s.get('closed', 0)) == '1' or s['closed'] == 1:
+            continue
+        if s['date'] < today:
+            continue
+        booked = booking_counts.get(str(s['id']), 0)
+        max_slots = int(s['max_slots'])
+        if booked >= max_slots:
+            continue
+
+        d = s['date']
         if d not in schedule_data:
             schedule_data[d] = []
         schedule_data[d].append({
-            'id': r['id'],
-            'time': r['time'],
-            'remaining': r['max_slots'] - r['booked']
+            'id': s['id'],
+            'time': s['time'],
+            'remaining': max_slots - booked
         })
+
+    # 날짜순 정렬
+    schedule_data = dict(sorted(schedule_data.items()))
+
     return render_template('index.html',
                            schedule_json=json.dumps(schedule_data, ensure_ascii=False),
                            has_dates=len(schedule_data) > 0)
@@ -83,22 +103,25 @@ def book():
     name = request.form['name']
     phone = request.form['phone']
 
-    conn = get_db()
-    schedule = conn.execute('SELECT * FROM schedules WHERE id = ? AND closed = 0', (schedule_id,)).fetchone()
+    schedules = get_all_schedules()
+    schedule = None
+    for s in schedules:
+        if str(s['id']) == str(schedule_id) and str(s.get('closed', 0)) != '1' and s.get('closed', 0) != 1:
+            schedule = s
+            break
+
     if not schedule:
-        conn.close()
         return '잘못된 요청입니다.', 400
 
-    booked = conn.execute('SELECT COUNT(*) as cnt FROM bookings WHERE schedule_id = ?',
-                          (schedule_id,)).fetchone()['cnt']
-    if booked >= schedule['max_slots']:
-        conn.close()
+    bookings = get_all_bookings()
+    booked = sum(1 for b in bookings if str(b['schedule_id']) == str(schedule_id))
+    if booked >= int(schedule['max_slots']):
         return '해당 시간은 이미 마감되었습니다.', 400
 
-    conn.execute('INSERT INTO bookings (schedule_id, name, phone) VALUES (?, ?, ?)',
-                 (schedule_id, name, phone))
-    conn.commit()
-    conn.close()
+    ws = get_bookings_ws()
+    new_id = next_id(ws)
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    ws.append_row([new_id, int(schedule_id), name, phone, schedule['date'], now])
 
     return render_template('confirm.html',
                            date=schedule['date'],
@@ -110,24 +133,13 @@ def book():
 
 @app.route('/admin')
 def admin():
-    conn = get_db()
-    schedules = conn.execute('''
-        SELECT s.id, s.date, s.time, s.max_slots, s.closed,
-               COUNT(b.id) as booked
-        FROM schedules s
-        LEFT JOIN bookings b ON b.schedule_id = s.id
-        GROUP BY s.id
-        ORDER BY s.date, s.time
-    ''').fetchall()
+    schedules = get_all_schedules()
+    bookings = get_all_bookings()
 
-    bookings = conn.execute('''
-        SELECT b.id, b.name, b.phone, b.created_at,
-               s.date, s.time
-        FROM bookings b
-        JOIN schedules s ON s.id = b.schedule_id
-        ORDER BY s.date DESC, s.time, b.created_at
-    ''').fetchall()
-    conn.close()
+    booking_counts = {}
+    for b in bookings:
+        sid = str(b['schedule_id'])
+        booking_counts[sid] = booking_counts.get(sid, 0) + 1
 
     schedule_list = []
     for s in schedules:
@@ -137,9 +149,9 @@ def admin():
             'date': s['date'],
             'weekday': WEEKDAY_NAMES[dt.weekday()],
             'time': s['time'],
-            'max_slots': s['max_slots'],
-            'booked': s['booked'],
-            'closed': s['closed'],
+            'max_slots': int(s['max_slots']),
+            'booked': booking_counts.get(str(s['id']), 0),
+            'closed': int(s.get('closed', 0)),
         })
 
     return render_template('admin.html', schedules=schedule_list, bookings=bookings)
@@ -147,21 +159,25 @@ def admin():
 
 @app.route('/admin/bulk-add', methods=['POST'])
 def bulk_add():
-    """기간 + 요일 + 시간으로 일괄 일정 생성"""
     start = request.form['start_date']
     end = request.form['end_date']
     time_val = request.form['time']
     max_slots = int(request.form.get('max_slots', 1))
-    day_type = request.form.get('day_type', 'weekday')  # weekday, weekend, all
+    day_type = request.form.get('day_type', 'weekday')
 
     start_dt = datetime.strptime(start, '%Y-%m-%d')
     end_dt = datetime.strptime(end, '%Y-%m-%d')
 
-    conn = get_db()
+    ws = get_schedules_ws()
+    existing = get_all_schedules()
+    existing_set = {(s['date'], s['time']) for s in existing}
+    new_id = next_id(ws)
+
+    rows_to_add = []
     current = start_dt
-    count = 0
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     while current <= end_dt:
-        wd = current.weekday()  # 0=월 ~ 6=일
+        wd = current.weekday()
         add = False
         if day_type == 'weekday' and wd < 5:
             add = True
@@ -172,56 +188,63 @@ def bulk_add():
 
         if add:
             date_str = current.strftime('%Y-%m-%d')
-            existing = conn.execute(
-                'SELECT id FROM schedules WHERE date = ? AND time = ?',
-                (date_str, time_val)
-            ).fetchone()
-            if not existing:
-                conn.execute(
-                    'INSERT INTO schedules (date, time, max_slots) VALUES (?, ?, ?)',
-                    (date_str, time_val, max_slots)
-                )
-                count += 1
+            if (date_str, time_val) not in existing_set:
+                rows_to_add.append([new_id, date_str, time_val, max_slots, 0, now])
+                new_id += 1
         current += timedelta(days=1)
 
-    conn.commit()
-    conn.close()
+    if rows_to_add:
+        ws.append_rows(rows_to_add)
+
     return redirect(url_for('admin'))
 
 
 @app.route('/admin/toggle-close/<int:sid>', methods=['POST'])
 def toggle_close(sid):
-    """마감/오픈 토글"""
-    conn = get_db()
-    schedule = conn.execute('SELECT closed FROM schedules WHERE id = ?', (sid,)).fetchone()
-    if schedule:
-        new_val = 0 if schedule['closed'] else 1
-        conn.execute('UPDATE schedules SET closed = ? WHERE id = ?', (new_val, sid))
-        conn.commit()
-    conn.close()
+    ws = get_schedules_ws()
+    records = ws.get_all_records()
+    for i, s in enumerate(records):
+        if int(s['id']) == sid:
+            row_num = i + 2  # 헤더 제외
+            current = int(s.get('closed', 0))
+            ws.update_cell(row_num, 5, 0 if current else 1)  # E열 = closed
+            break
     return redirect(url_for('admin'))
 
 
 @app.route('/admin/delete-schedule/<int:sid>', methods=['POST'])
 def delete_schedule(sid):
-    conn = get_db()
-    conn.execute('DELETE FROM bookings WHERE schedule_id = ?', (sid,))
-    conn.execute('DELETE FROM schedules WHERE id = ?', (sid,))
-    conn.commit()
-    conn.close()
+    # 관련 예약 삭제
+    bws = get_bookings_ws()
+    bookings = bws.get_all_records()
+    rows_to_delete = []
+    for i, b in enumerate(bookings):
+        if int(b['schedule_id']) == sid:
+            rows_to_delete.append(i + 2)
+    for row in sorted(rows_to_delete, reverse=True):
+        bws.delete_rows(row)
+
+    # 스케줄 삭제
+    ws = get_schedules_ws()
+    records = ws.get_all_records()
+    for i, s in enumerate(records):
+        if int(s['id']) == sid:
+            ws.delete_rows(i + 2)
+            break
+
     return redirect(url_for('admin'))
 
 
 @app.route('/admin/delete-booking/<int:bid>', methods=['POST'])
 def delete_booking(bid):
-    conn = get_db()
-    conn.execute('DELETE FROM bookings WHERE id = ?', (bid,))
-    conn.commit()
-    conn.close()
+    ws = get_bookings_ws()
+    records = ws.get_all_records()
+    for i, b in enumerate(records):
+        if int(b['id']) == bid:
+            ws.delete_rows(i + 2)
+            break
     return redirect(url_for('admin'))
 
-
-init_db()
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
