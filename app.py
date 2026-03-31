@@ -61,16 +61,20 @@ def index():
     ''').fetchall()
     conn.close()
 
-    dates = {}
+    import json
+    schedule_data = {}
     for r in rows:
         d = r['date']
-        dt = datetime.strptime(d, '%Y-%m-%d')
-        label = f"{d} ({WEEKDAY_NAMES[dt.weekday()]})"
-        if label not in dates:
-            dates[label] = []
-        dates[label].append({'id': r['id'], 'time': r['time'],
-                             'remaining': r['max_slots'] - r['booked']})
-    return render_template('index.html', dates=dates)
+        if d not in schedule_data:
+            schedule_data[d] = []
+        schedule_data[d].append({
+            'id': r['id'],
+            'time': r['time'],
+            'remaining': r['max_slots'] - r['booked']
+        })
+    return render_template('index.html',
+                           schedule_json=json.dumps(schedule_data, ensure_ascii=False),
+                           has_dates=len(schedule_data) > 0)
 
 
 @app.route('/book', methods=['POST'])

@@ -10,25 +10,51 @@
         .header { background: #03C75A; color: #fff; text-align: center; padding: 40px 20px; }
         .header h1 { font-size: 28px; margin-bottom: 8px; }
         .header p { font-size: 14px; opacity: 0.9; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .container { max-width: 500px; margin: 0 auto; padding: 20px; }
 
-        .date-group { background: #fff; border-radius: 12px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        .date-header { background: #03C75A; color: #fff; padding: 14px 20px; font-size: 16px; font-weight: 600; }
-        .time-slot { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: all 0.2s; }
-        .time-slot:hover { background: #f0faf3; }
-        .time-slot:last-child { border-bottom: none; }
-        .time-slot .time { font-size: 16px; font-weight: 500; }
-        .time-slot .remaining { font-size: 13px; color: #888; }
-        .time-slot .arrow { color: #ccc; font-size: 18px; }
+        /* 캘린더 */
+        .calendar { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); overflow: hidden; }
+        .cal-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; }
+        .cal-header .month { font-size: 18px; font-weight: 700; }
+        .cal-header button { width: 36px; height: 36px; border: none; background: #f0f0f0; border-radius: 50%; font-size: 18px; cursor: pointer; color: #333; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+        .cal-header button:hover { background: #e0e0e0; }
 
-        .empty { text-align: center; padding: 60px 20px; color: #888; font-size: 16px; }
+        .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; padding: 0 10px; }
+        .cal-weekdays span { font-size: 13px; font-weight: 600; color: #999; padding: 8px 0; }
+        .cal-weekdays span:first-child { color: #e74c3c; }
+        .cal-weekdays span:last-child { color: #2196F3; }
 
-        /* 모달 공통 */
+        .cal-days { display: grid; grid-template-columns: repeat(7, 1fr); padding: 0 10px 14px; gap: 4px; }
+        .cal-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 15px; border-radius: 50%; cursor: default; position: relative; }
+        .cal-day.other-month { color: #ddd; }
+        .cal-day.today { font-weight: 700; }
+        .cal-day.today::after { content: ''; position: absolute; bottom: 4px; width: 4px; height: 4px; border-radius: 50%; background: #03C75A; }
+        .cal-day.available { cursor: pointer; font-weight: 600; color: #03C75A; background: #f0faf3; }
+        .cal-day.available:hover { background: #03C75A; color: #fff; }
+        .cal-day.selected { background: #03C75A; color: #fff; }
+        .cal-day.sunday { color: #e74c3c; }
+        .cal-day.saturday { color: #2196F3; }
+        .cal-day.available.sunday, .cal-day.available.saturday { color: #03C75A; }
+        .cal-day.available.sunday:hover, .cal-day.available.saturday:hover,
+        .cal-day.selected.sunday, .cal-day.selected.saturday { color: #fff; }
+
+        /* 시간 선택 */
+        .time-section { margin-top: 16px; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); overflow: hidden; display: none; }
+        .time-section.active { display: block; }
+        .time-section .title { padding: 16px 20px; font-size: 15px; font-weight: 600; color: #333; border-bottom: 1px solid #f0f0f0; }
+        .time-section .title span { color: #03C75A; }
+        .time-list { padding: 8px; }
+        .time-item { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; margin: 4px 0; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+        .time-item:hover { background: #f0faf3; }
+        .time-item .t { font-size: 16px; font-weight: 500; }
+        .time-item .r { font-size: 13px; color: #888; }
+
+        .empty { text-align: center; padding: 40px 20px; color: #999; font-size: 15px; margin-top: 16px; }
+
+        /* 모달 */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
         .modal-overlay.active { display: flex; }
         .modal { background: #fff; border-radius: 16px; padding: 32px; max-width: 440px; width: 90%; }
-
-        /* 신청 모달 (step1) */
         .modal .selected-info { background: #f0faf3; padding: 14px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; line-height: 1.6; }
         .modal .selected-info strong { color: #03C75A; }
         .modal h3 { font-size: 20px; margin-bottom: 20px; color: #333; text-align: center; }
@@ -36,12 +62,10 @@
         .modal .form-group label { display: block; font-size: 14px; margin-bottom: 6px; font-weight: 500; }
         .modal .form-group input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; }
         .modal .form-group input:focus { outline: none; border-color: #03C75A; box-shadow: 0 0 0 3px rgba(3,199,90,0.1); }
-        .modal .btn-submit { width: 100%; padding: 14px; background: #03C75A; color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 8px; transition: background 0.2s; }
+        .modal .btn-submit { width: 100%; padding: 14px; background: #03C75A; color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 8px; }
         .modal .btn-submit:hover { background: #02b350; }
         .modal .btn-submit:disabled { background: #ccc; cursor: not-allowed; }
         .modal .btn-back { width: 100%; padding: 12px; background: none; border: none; color: #888; font-size: 14px; cursor: pointer; margin-top: 8px; }
-
-        /* 확인 모달 (step2) */
         .modal .info { text-align: left; background: #f0faf3; padding: 16px; border-radius: 8px; margin-bottom: 16px; line-height: 1.8; font-size: 14px; }
         .modal .info strong { color: #03C75A; }
         .modal .warning { color: #e74c3c; font-size: 14px; margin-bottom: 20px; font-weight: 500; text-align: center; }
@@ -58,24 +82,29 @@
     </div>
 
     <div class="container">
-        {% if dates %}
-            {% for date, slots in dates.items() %}
-            <div class="date-group">
-                <div class="date-header">{{ date }}</div>
-                {% for slot in slots %}
-                <div class="time-slot" onclick="openBooking('{{ slot.id }}', '{{ date }}', '{{ slot.time }}')">
-                    <span class="time">{{ slot.time }}</span>
-                    <span class="remaining">잔여 {{ slot.remaining }}자리 ›</span>
-                </div>
-                {% endfor %}
+        <div class="calendar">
+            <div class="cal-header">
+                <button onclick="changeMonth(-1)">&#8249;</button>
+                <span class="month" id="calMonth"></span>
+                <button onclick="changeMonth(1)">&#8250;</button>
             </div>
-            {% endfor %}
-        {% else %}
+            <div class="cal-weekdays">
+                <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+            </div>
+            <div class="cal-days" id="calDays"></div>
+        </div>
+
+        <div class="time-section" id="timeSection">
+            <div class="title"><span id="selectedDateLabel"></span> 촬영 가능 시간</div>
+            <div class="time-list" id="timeList"></div>
+        </div>
+
+        {% if not has_dates %}
         <div class="empty">현재 예약 가능한 촬영 일정이 없습니다.</div>
         {% endif %}
     </div>
 
-    <!-- Step 1: 이름/전화번호 입력 모달 -->
+    <!-- Step 1: 이름/전화번호 입력 -->
     <div class="modal-overlay" id="bookingModal">
         <div class="modal">
             <h3>촬영 신청</h3>
@@ -96,7 +125,7 @@
         </div>
     </div>
 
-    <!-- Step 2: 최종 확인 모달 -->
+    <!-- Step 2: 최종 확인 -->
     <div class="modal-overlay" id="confirmModal">
         <div class="modal">
             <h3>촬영 신청 확인</h3>
@@ -116,9 +145,85 @@
     </div>
 
     <script>
-        let selectedId = null;
-        let selectedDate = '';
-        let selectedTime = '';
+        const scheduleData = {{ schedule_json | safe }};
+        const weekNames = ['일', '월', '화', '수', '목', '금', '토'];
+        let currentYear, currentMonth;
+        let selectedId = null, selectedDate = '', selectedTime = '';
+
+        const today = new Date();
+        currentYear = today.getFullYear();
+        currentMonth = today.getMonth();
+
+        function renderCalendar() {
+            const monthEl = document.getElementById('calMonth');
+            const daysEl = document.getElementById('calDays');
+            monthEl.textContent = `${currentYear}년 ${currentMonth + 1}월`;
+
+            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            const lastDate = new Date(currentYear, currentMonth + 1, 0).getDate();
+            const prevLastDate = new Date(currentYear, currentMonth, 0).getDate();
+
+            let html = '';
+
+            // 이전 달
+            for (let i = firstDay - 1; i >= 0; i--) {
+                html += `<div class="cal-day other-month">${prevLastDate - i}</div>`;
+            }
+
+            // 이번 달
+            for (let d = 1; d <= lastDate; d++) {
+                const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const dow = new Date(currentYear, currentMonth, d).getDay();
+                let cls = 'cal-day';
+                if (dow === 0) cls += ' sunday';
+                if (dow === 6) cls += ' saturday';
+                if (currentYear === today.getFullYear() && currentMonth === today.getMonth() && d === today.getDate()) cls += ' today';
+                if (scheduleData[dateStr]) {
+                    cls += ' available';
+                    html += `<div class="${cls}" onclick="selectDate('${dateStr}')" data-date="${dateStr}">${d}</div>`;
+                } else {
+                    html += `<div class="${cls}">${d}</div>`;
+                }
+            }
+
+            // 다음 달
+            const totalCells = firstDay + lastDate;
+            const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+            for (let i = 1; i <= remaining; i++) {
+                html += `<div class="cal-day other-month">${i}</div>`;
+            }
+
+            daysEl.innerHTML = html;
+        }
+
+        function changeMonth(dir) {
+            currentMonth += dir;
+            if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+            if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+            renderCalendar();
+            document.getElementById('timeSection').classList.remove('active');
+        }
+
+        function selectDate(dateStr) {
+            // 선택 표시
+            document.querySelectorAll('.cal-day').forEach(el => el.classList.remove('selected'));
+            document.querySelector(`.cal-day[data-date="${dateStr}"]`)?.classList.add('selected');
+
+            const dt = new Date(dateStr);
+            const label = `${dateStr} (${weekNames[dt.getDay()]})`;
+            document.getElementById('selectedDateLabel').textContent = label;
+
+            const slots = scheduleData[dateStr];
+            const listEl = document.getElementById('timeList');
+            listEl.innerHTML = slots.map(s =>
+                `<div class="time-item" onclick="openBooking('${s.id}', '${label}', '${s.time}')">
+                    <span class="t">${s.time}</span>
+                    <span class="r">잔여 ${s.remaining}자리 ›</span>
+                </div>`
+            ).join('');
+
+            document.getElementById('timeSection').classList.add('active');
+        }
 
         function openBooking(id, date, time) {
             selectedId = id;
@@ -163,13 +268,11 @@
             const form = document.createElement('form');
             form.method = 'POST';
             form.action = '/book';
-
             const fields = {
                 schedule_id: selectedId,
                 name: document.getElementById('name').value.trim(),
                 phone: document.getElementById('phone').value.trim()
             };
-
             for (const [k, v] of Object.entries(fields)) {
                 const input = document.createElement('input');
                 input.type = 'hidden';
@@ -177,10 +280,11 @@
                 input.value = v;
                 form.appendChild(input);
             }
-
             document.body.appendChild(form);
             form.submit();
         }
+
+        renderCalendar();
     </script>
 </body>
 </html>
