@@ -1,0 +1,7 @@
+__pycache__
+*.pyc
+schedule.db
+server.log
+*.yaml
+fly.toml
+.dockerignore

@@ -6,8 +6,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN mkdir -p /data
-ENV DB_PATH=/data/schedule.db
+RUN mkdir -p /app/data
+ENV DB_PATH=/app/data/schedule.db
 
 EXPOSE 8080
 CMD ["gunicorn", "-b", "0.0.0.0:8080", "app:app"]
