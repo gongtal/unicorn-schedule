@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>관리자 - 유니콘 촬영 스케쥴</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #fff; color: #333; }
+        .header { background: #03C75A; color: #fff; padding: 30px 20px; text-align: center; }
+        .header h1 { font-size: 24px; margin-bottom: 4px; }
+        .header p { font-size: 13px; opacity: 0.8; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+
+        .section { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .section h2 { font-size: 18px; margin-bottom: 16px; color: #03C75A; border-bottom: 2px solid #e8f9ee; padding-bottom: 10px; }
+
+        /* 일괄 추가 폼 */
+        .bulk-form { display: flex; flex-direction: column; gap: 14px; }
+        .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+        .field { display: flex; flex-direction: column; gap: 4px; }
+        .field label { font-size: 13px; font-weight: 500; color: #666; }
+        .field input, .field select { padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .field input[type="date"] { width: 155px; }
+        .field input[type="time"] { width: 120px; }
+        .field input[type="number"] { width: 70px; }
+        .field select { width: 100px; }
+
+        .day-type-group { display: flex; gap: 8px; }
+        .day-type-group label { display: flex; align-items: center; gap: 4px; padding: 8px 16px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
+        .day-type-group input { display: none; }
+        .day-type-group input:checked + span { color: #03C75A; }
+        .day-type-group label:has(input:checked) { border-color: #03C75A; background: #f0faf3; }
+
+        .btn-add { padding: 12px 28px; background: #03C75A; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        .btn-add:hover { background: #02b350; }
+
+        /* 일정 테이블 */
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th { background: #f0faf3; color: #03C75A; padding: 12px 10px; text-align: left; font-weight: 600; }
+        td { padding: 10px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .badge-open { background: #e8f5e9; color: #2e7d32; }
+        .badge-full { background: #fce4ec; color: #c62828; }
+        .badge-closed { background: #f5f5f5; color: #999; }
+        .badge-booked { background: #fff3e0; color: #e65100; }
+
+        .btn-close { padding: 5px 12px; border: 1px solid #ff6b6b; background: #fff; color: #ff6b6b; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: 500; }
+        .btn-close:hover { background: #ff6b6b; color: #fff; }
+        .btn-open { padding: 5px 12px; border: 1px solid #03C75A; background: #fff; color: #03C75A; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: 500; }
+        .btn-open:hover { background: #03C75A; color: #fff; }
+        .btn-del { padding: 5px 10px; background: none; color: #ccc; border: none; font-size: 12px; cursor: pointer; }
+        .btn-del:hover { color: #ff6b6b; }
+
+        .actions { display: flex; gap: 6px; align-items: center; }
+
+        .empty-msg { text-align: center; color: #aaa; padding: 30px; }
+        .nav-link { display: inline-block; margin-top: 10px; color: #03C75A; text-decoration: none; font-size: 14px; }
+
+        .weekday { color: #333; }
+        .saturday { color: #2196F3; }
+        .sunday { color: #e74c3c; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>유니콘 촬영 스케쥴 - 관리자</h1>
+        <p>촬영 일정 관리 및 예약 현황</p>
+    </div>
+
+    <div class="container">
+        <a href="/" class="nav-link">&larr; 수강생 페이지로 이동</a>
+
+        <!-- 일괄 일정 추가 -->
+        <div class="section" style="margin-top: 12px;">
+            <h2>일정 일괄 오픈</h2>
+            <form class="bulk-form" action="/admin/bulk-add" method="POST">
+                <div class="form-row">
+                    <div class="field">
+                        <label>시작일</label>
+                        <input type="date" name="start_date" required>
+                    </div>
+                    <div class="field">
+                        <label>종료일</label>
+                        <input type="date" name="end_date" required>
+                    </div>
+                    <div class="field">
+                        <label>시간</label>
+                        <input type="time" name="time" value="10:00" required>
+                    </div>
+                    <div class="field">
+                        <label>정원</label>
+                        <input type="number" name="max_slots" value="1" min="1" max="50">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="day-type-group">
+                        <label><input type="radio" name="day_type" value="weekday" checked><span>평일</span></label>
+                        <label><input type="radio" name="day_type" value="weekend"><span>주말</span></label>
+                        <label><input type="radio" name="day_type" value="all"><span>전체</span></label>
+                    </div>
+                    <button type="submit" class="btn-add">일정 오픈</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 등록된 일정 -->
+        <div class="section">
+            <h2>일정 현황</h2>
+            {% if schedules %}
+            <table>
+                <thead>
+                    <tr><th>날짜</th><th>요일</th><th>시간</th><th>예약</th><th>상태</th><th></th></tr>
+                </thead>
+                <tbody>
+                    {% for s in schedules %}
+                    <tr>
+                        <td>{{ s.date }}</td>
+                        <td>
+                            {% if s.weekday == '토' %}
+                            <span class="saturday">{{ s.weekday }}</span>
+                            {% elif s.weekday == '일' %}
+                            <span class="sunday">{{ s.weekday }}</span>
+                            {% else %}
+                            <span class="weekday">{{ s.weekday }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ s.time }}</td>
+                        <td>{{ s.booked }} / {{ s.max_slots }}</td>
+                        <td>
+                            {% if s.closed %}
+                            <span class="badge badge-closed">마감</span>
+                            {% elif s.booked >= s.max_slots %}
+                            <span class="badge badge-full">정원마감</span>
+                            {% elif s.booked > 0 %}
+                            <span class="badge badge-booked">{{ s.booked }}명 신청</span>
+                            {% else %}
+                            <span class="badge badge-open">예약가능</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="actions">
+                                <form action="/admin/toggle-close/{{ s.id }}" method="POST" style="display:inline">
+                                    {% if s.closed %}
+                                    <button class="btn-open">오픈</button>
+                                    {% else %}
+                                    <button class="btn-close">마감</button>
+                                    {% endif %}
+                                </form>
+                                <form action="/admin/delete-schedule/{{ s.id }}" method="POST" style="display:inline" onsubmit="return confirm('삭제하시겠습니까?')">
+                                    <button class="btn-del">삭제</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="empty-msg">등록된 일정이 없습니다.</p>
+            {% endif %}
+        </div>
+
+        <!-- 예약 목록 -->
+        <div class="section">
+            <h2>예약 목록</h2>
+            {% if bookings %}
+            <table>
+                <thead>
+                    <tr><th>날짜</th><th>시간</th><th>이름</th><th>전화번호</th><th>신청시간</th><th></th></tr>
+                </thead>
+                <tbody>
+                    {% for b in bookings %}
+                    <tr>
+                        <td>{{ b.date }}</td>
+                        <td>{{ b.time }}</td>
+                        <td>{{ b.name }}</td>
+                        <td>{{ b.phone }}</td>
+                        <td>{{ b.created_at }}</td>
+                        <td>
+                            <form action="/admin/delete-booking/{{ b.id }}" method="POST" style="display:inline" onsubmit="return confirm('이 예약을 삭제하시겠습니까?')">
+                                <button class="btn-del">삭제</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="empty-msg">예약 내역이 없습니다.</p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>신청 완료 - 유니콘 촬영 스케쥴</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #fff; color: #333; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .card { background: #fff; border-radius: 16px; padding: 40px 32px; max-width: 440px; width: 90%; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        .check { width: 64px; height: 64px; background: #03C75A; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+        .check svg { width: 32px; height: 32px; }
+        h2 { font-size: 22px; margin-bottom: 24px; color: #333; }
+        .info { text-align: left; background: #f0faf3; padding: 20px; border-radius: 10px; margin-bottom: 24px; line-height: 1.9; font-size: 14px; }
+        .info strong { color: #03C75A; }
+        .btn { display: inline-block; padding: 12px 32px; background: #03C75A; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="check">
+            <svg fill="none" stroke="#fff" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <h2>촬영 신청이 완료되었습니다!</h2>
+        <div class="info">
+            <strong>신청자</strong> : {{ name }}<br>
+            <strong>촬영 날짜</strong> : {{ date }}<br>
+            <strong>촬영 시간</strong> : {{ time }}<br><br>
+            <strong>사무실 주소</strong><br>
+            서울특별시 마포구 서교동 351-11 이혜빌딩 3층
+        </div>
+        <a href="/" class="btn">돌아가기</a>
+    </div>
+</body>
+</html>
