@@ -8,3 +8,11 @@
  * Debugger PIN: 769-781-165
 127.0.0.1 - - [31/Mar/2026 14:21:26] "GET / HTTP/1.1" 200 -
 127.0.0.1 - - [31/Mar/2026 14:21:32] "GET /admin HTTP/1.1" 200 -
+ * Detected change in '/Users/kimdonghun/unicorn-schedule/app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 769-781-165
+ * Detected change in '/Users/kimdonghun/unicorn-schedule/app.py', reloading
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 769-781-165

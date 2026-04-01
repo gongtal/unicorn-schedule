@@ -5,6 +5,7 @@ import json
 import os
 
 app = Flask(__name__)
+app.config['PROPAGATE_EXCEPTIONS'] = True
 
 SPREADSHEET_ID = os.environ.get('SPREADSHEET_ID', '1c8vUU9XshrPFD6OzrXyoEmOKIl4mS-jow3P_p0w-p1Q')
 WEEKDAY_NAMES = ['월', '화', '수', '목', '금', '토', '일']
@@ -244,6 +245,20 @@ def delete_booking(bid):
             ws.delete_rows(i + 2)
             break
     return redirect(url_for('admin'))
+
+
+@app.route('/health')
+def health():
+    try:
+        has_creds = bool(os.environ.get('GOOGLE_CREDENTIALS', ''))
+        has_sheet = bool(os.environ.get('SPREADSHEET_ID', ''))
+        gc = get_gc()
+        sh = gc.open_by_key(SPREADSHEET_ID)
+        ws = sh.worksheet('schedules')
+        count = len(ws.get_all_records())
+        return jsonify({'status': 'ok', 'has_creds': has_creds, 'has_sheet': has_sheet, 'schedules': count})
+    except Exception as e:
+        return jsonify({'status': 'error', 'error': str(e), 'has_creds': bool(os.environ.get('GOOGLE_CREDENTIALS', '')), 'has_sheet': bool(os.environ.get('SPREADSHEET_ID', ''))})
 
 
 if __name__ == '__main__':
