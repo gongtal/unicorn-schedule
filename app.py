@@ -17,8 +17,12 @@ SERVICE_ACCOUNT_INFO = os.environ.get('GOOGLE_CREDENTIALS', '')
 
 def get_gc():
     if SERVICE_ACCOUNT_INFO:
-        import json as _json
-        info = _json.loads(SERVICE_ACCOUNT_INFO)
+        import base64
+        try:
+            decoded = base64.b64decode(SERVICE_ACCOUNT_INFO).decode('utf-8')
+            info = json.loads(decoded)
+        except Exception:
+            info = json.loads(SERVICE_ACCOUNT_INFO)
         return gspread.service_account_from_dict(info)
     else:
         return gspread.service_account(filename=SERVICE_ACCOUNT_FILE)
