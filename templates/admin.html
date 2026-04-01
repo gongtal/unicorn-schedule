@@ -15,8 +15,7 @@
         .section { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
         .section h2 { font-size: 18px; margin-bottom: 16px; color: #03C75A; border-bottom: 2px solid #e8f9ee; padding-bottom: 10px; }
 
-        /* 일괄 추가 폼 */
-        .bulk-form { display: flex; flex-direction: column; gap: 14px; }
+        .bulk-form { display: flex; flex-direction: column; gap: 16px; }
         .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
         .field { display: flex; flex-direction: column; gap: 4px; }
         .field label { font-size: 13px; font-weight: 500; color: #666; }
@@ -24,18 +23,14 @@
         .field input[type="date"] { width: 155px; }
         .field input[type="time"] { width: 120px; }
         .field input[type="number"] { width: 70px; }
-        .field select { width: 100px; }
 
         .day-type-group { display: flex; gap: 8px; }
-        .day-type-group label { display: flex; align-items: center; gap: 4px; padding: 8px 16px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
-        .day-type-group input { display: none; }
-        .day-type-group input:checked + span { color: #03C75A; }
-        .day-type-group label:has(input:checked) { border-color: #03C75A; background: #f0faf3; }
+        .day-btn { padding: 10px 20px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; background: #fff; color: #666; transition: all 0.2s; }
+        .day-btn.active { border-color: #03C75A; background: #f0faf3; color: #03C75A; }
 
         .btn-add { padding: 12px 28px; background: #03C75A; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
         .btn-add:hover { background: #02b350; }
 
-        /* 일정 테이블 */
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         th { background: #f0faf3; color: #03C75A; padding: 12px 10px; text-align: left; font-weight: 600; }
         td { padding: 10px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
@@ -55,7 +50,6 @@
         .btn-del:hover { color: #ff6b6b; }
 
         .actions { display: flex; gap: 6px; align-items: center; }
-
         .empty-msg { text-align: center; color: #aaa; padding: 30px; }
         .nav-link { display: inline-block; margin-top: 10px; color: #03C75A; text-decoration: none; font-size: 14px; }
 
@@ -96,10 +90,11 @@
                     </div>
                 </div>
                 <div class="form-row">
+                    <input type="hidden" name="day_type" id="dayTypeInput" value="weekday">
                     <div class="day-type-group">
-                        <label><input type="radio" name="day_type" value="weekday" checked><span>평일</span></label>
-                        <label><input type="radio" name="day_type" value="weekend"><span>주말</span></label>
-                        <label><input type="radio" name="day_type" value="all"><span>전체</span></label>
+                        <button type="button" class="day-btn active" onclick="setDayType(this, 'weekday')">평일</button>
+                        <button type="button" class="day-btn" onclick="setDayType(this, 'weekend')">주말</button>
+                        <button type="button" class="day-btn" onclick="setDayType(this, 'all')">전체</button>
                     </div>
                     <button type="submit" class="btn-add">일정 오픈</button>
                 </div>
@@ -144,13 +139,13 @@
                             <div class="actions">
                                 <form action="/admin/toggle-close/{{ s.id }}" method="POST" style="display:inline">
                                     {% if s.closed %}
-                                    <button class="btn-open">오픈</button>
+                                    <button type="submit" class="btn-open">오픈</button>
                                     {% else %}
-                                    <button class="btn-close">마감</button>
+                                    <button type="submit" class="btn-close">마감</button>
                                     {% endif %}
                                 </form>
                                 <form action="/admin/delete-schedule/{{ s.id }}" method="POST" style="display:inline" onsubmit="return confirm('삭제하시겠습니까?')">
-                                    <button class="btn-del">삭제</button>
+                                    <button type="submit" class="btn-del">삭제</button>
                                 </form>
                             </div>
                         </td>
@@ -181,7 +176,7 @@
                         <td>{{ b.created_at }}</td>
                         <td>
                             <form action="/admin/delete-booking/{{ b.id }}" method="POST" style="display:inline" onsubmit="return confirm('이 예약을 삭제하시겠습니까?')">
-                                <button class="btn-del">삭제</button>
+                                <button type="submit" class="btn-del">삭제</button>
                             </form>
                         </td>
                     </tr>
@@ -193,5 +188,13 @@
             {% endif %}
         </div>
     </div>
+
+    <script>
+        function setDayType(btn, value) {
+            document.getElementById('dayTypeInput').value = value;
+            document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+    </script>
 </body>
 </html>
