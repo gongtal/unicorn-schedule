@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import gspread
 import json
 import os
+import time
 
 app = Flask(__name__)
 app.config['PROPAGATE_EXCEPTIONS'] = True
@@ -14,42 +15,88 @@ WEEKDAY_NAMES = ['월', '화', '수', '목', '금', '토', '일']
 SERVICE_ACCOUNT_FILE = os.path.join(os.path.dirname(__file__), 'service-account.json')
 SERVICE_ACCOUNT_INFO = os.environ.get('GOOGLE_CREDENTIALS', '')
 
+# 캐시
+_gc_cache = None
+_sh_cache = None
+_data_cache = {'schedules': None, 'bookings': None, 'time': 0}
+CACHE_TTL = 10  # 10초 캐시
+
 
 def get_gc():
-    if SERVICE_ACCOUNT_INFO:
-        import base64
-        try:
-            decoded = base64.b64decode(SERVICE_ACCOUNT_INFO).decode('utf-8')
-            info = json.loads(decoded)
-        except Exception:
-            info = json.loads(SERVICE_ACCOUNT_INFO)
-        return gspread.service_account_from_dict(info)
-    else:
-        return gspread.service_account(filename=SERVICE_ACCOUNT_FILE)
+    global _gc_cache
+    if _gc_cache is None:
+        if SERVICE_ACCOUNT_INFO:
+            import base64
+            try:
+                decoded = base64.b64decode(SERVICE_ACCOUNT_INFO).decode('utf-8')
+                info = json.loads(decoded)
+            except Exception:
+                info = json.loads(SERVICE_ACCOUNT_INFO)
+            _gc_cache = gspread.service_account_from_dict(info)
+        else:
+            _gc_cache = gspread.service_account(filename=SERVICE_ACCOUNT_FILE)
+    return _gc_cache
+
+
+def get_sheet():
+    global _sh_cache
+    if _sh_cache is None:
+        gc = get_gc()
+        _sh_cache = gc.open_by_key(SPREADSHEET_ID)
+    return _sh_cache
 
 
 def get_schedules_ws():
-    gc = get_gc()
-    sh = gc.open_by_key(SPREADSHEET_ID)
-    return sh.worksheet('schedules')
+    return get_sheet().worksheet('schedules')
 
 
 def get_bookings_ws():
-    gc = get_gc()
-    sh = gc.open_by_key(SPREADSHEET_ID)
-    return sh.worksheet('bookings')
+    return get_sheet().worksheet('bookings')
+
+
+def invalidate_cache():
+    _data_cache['time'] = 0
 
 
 def get_all_schedules():
+    now = time.time()
+    if _data_cache['schedules'] is not None and (now - _data_cache['time']) < CACHE_TTL:
+        return _data_cache['schedules']
     ws = get_schedules_ws()
     records = ws.get_all_records()
+    _data_cache['schedules'] = records
+    _data_cache['time'] = now
     return records
 
 
 def get_all_bookings():
+    now = time.time()
+    if _data_cache['bookings'] is not None and (now - _data_cache['time']) < CACHE_TTL:
+        return _data_cache['bookings']
     ws = get_bookings_ws()
     records = ws.get_all_records()
+    _data_cache['bookings'] = records
+    _data_cache['time'] = now
     return records
+
+
+def get_all_data():
+    """스케줄과 예약을 한번에 가져오기 (API 호출 최소화)"""
+    now = time.time()
+    if (_data_cache['schedules'] is not None and
+        _data_cache['bookings'] is not None and
+        (now - _data_cache['time']) < CACHE_TTL):
+        return _data_cache['schedules'], _data_cache['bookings']
+
+    sh = get_sheet()
+    s_ws = sh.worksheet('schedules')
+    b_ws = sh.worksheet('bookings')
+    schedules = s_ws.get_all_records()
+    bookings = b_ws.get_all_records()
+    _data_cache['schedules'] = schedules
+    _data_cache['bookings'] = bookings
+    _data_cache['time'] = now
+    return schedules, bookings
 
 
 def next_id(ws):
@@ -64,11 +111,9 @@ def next_id(ws):
 
 @app.route('/')
 def index():
-    schedules = get_all_schedules()
-    bookings = get_all_bookings()
+    schedules, bookings = get_all_data()
     today = datetime.now().strftime('%Y-%m-%d')
 
-    # 각 스케줄별 예약 수 계산
     booking_counts = {}
     for b in bookings:
         sid = str(b['schedule_id'])
@@ -127,6 +172,7 @@ def book():
     new_id = next_id(ws)
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     ws.append_row([new_id, int(schedule_id), name, phone, schedule['date'], now])
+    invalidate_cache()
 
     return render_template('confirm.html',
                            date=schedule['date'],
@@ -138,8 +184,7 @@ def book():
 
 @app.route('/admin')
 def admin():
-    schedules = get_all_schedules()
-    bookings = get_all_bookings()
+    schedules, bookings = get_all_data()
 
     booking_counts = {}
     for b in bookings:
@@ -218,6 +263,7 @@ def bulk_add():
 
     if rows_to_add:
         ws.append_rows(rows_to_add)
+    invalidate_cache()
 
     return redirect(url_for('admin'))
 
@@ -232,6 +278,7 @@ def toggle_close(sid):
             current = int(s.get('closed', 0))
             ws.update_cell(row_num, 5, 0 if current else 1)  # E열 = closed
             break
+    invalidate_cache()
     return redirect(url_for('admin'))
 
 
@@ -254,7 +301,7 @@ def delete_schedule(sid):
         if int(s['id']) == sid:
             ws.delete_rows(i + 2)
             break
-
+    invalidate_cache()
     return redirect(url_for('admin'))
 
 
@@ -266,6 +313,7 @@ def delete_booking(bid):
         if int(b['id']) == bid:
             ws.delete_rows(i + 2)
             break
+    invalidate_cache()
     return redirect(url_for('admin'))
 
 
