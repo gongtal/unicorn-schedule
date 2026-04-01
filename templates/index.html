@@ -112,6 +112,8 @@
         <input type="hidden" name="schedule_id" id="formScheduleId">
         <input type="hidden" name="name" id="formName">
         <input type="hidden" name="phone" id="formPhone">
+        <input type="hidden" name="script_url" id="formScript">
+        <input type="hidden" name="benchmark_url" id="formBenchmark">
     </form>
 
     <!-- Step 1: 이름/전화번호 입력 -->
@@ -129,6 +131,14 @@
             <div class="form-group">
                 <label>전화번호</label>
                 <input type="tel" id="phone" placeholder="010-0000-0000" autocomplete="tel">
+            </div>
+            <div class="form-group">
+                <label>대본 링크</label>
+                <input type="url" id="script_url" placeholder="대본 파일 링크 (구글드라이브 등)">
+            </div>
+            <div class="form-group">
+                <label>벤치마킹 영상 링크</label>
+                <input type="url" id="benchmark_url" placeholder="벤치마킹 영상 3개 링크">
             </div>
             <button type="button" class="btn-full btn-green" id="nextBtn" disabled>다음</button>
             <button type="button" class="btn-full btn-gray" id="cancelBtn">취소</button>
@@ -208,22 +218,18 @@
         document.getElementById('backBtn').addEventListener('touchend', goBack);
 
         // Step 2 모달: 예 버튼 (최종 제출)
-        document.getElementById('submitBtn').addEventListener('click', function(e) {
+        function doSubmit(e) {
             e.preventDefault();
             e.stopPropagation();
             document.getElementById('formScheduleId').value = selectedId;
             document.getElementById('formName').value = document.getElementById('name').value.trim();
             document.getElementById('formPhone').value = document.getElementById('phone').value.trim();
+            document.getElementById('formScript').value = document.getElementById('script_url').value.trim();
+            document.getElementById('formBenchmark').value = document.getElementById('benchmark_url').value.trim();
             document.getElementById('hiddenForm').submit();
-        });
-        document.getElementById('submitBtn').addEventListener('touchend', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            document.getElementById('formScheduleId').value = selectedId;
-            document.getElementById('formName').value = document.getElementById('name').value.trim();
-            document.getElementById('formPhone').value = document.getElementById('phone').value.trim();
-            document.getElementById('hiddenForm').submit();
-        });
+        }
+        document.getElementById('submitBtn').addEventListener('click', doSubmit);
+        document.getElementById('submitBtn').addEventListener('touchend', doSubmit);
 
         // 폼 검증
         function checkForm() {
@@ -314,6 +320,8 @@
             document.getElementById('bookTime').textContent = selectedTime;
             document.getElementById('name').value = '';
             document.getElementById('phone').value = '';
+            document.getElementById('script_url').value = '';
+            document.getElementById('benchmark_url').value = '';
             document.getElementById('nextBtn').disabled = true;
             document.getElementById('bookingModal').classList.add('active');
             setTimeout(function() { document.getElementById('name').focus(); }, 200);

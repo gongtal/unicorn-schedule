@@ -152,6 +152,8 @@ def book():
     schedule_id = request.form['schedule_id']
     name = request.form['name']
     phone = request.form['phone']
+    script_url = request.form.get('script_url', '')
+    benchmark_url = request.form.get('benchmark_url', '')
 
     schedules = get_all_schedules()
     schedule = None
@@ -171,7 +173,7 @@ def book():
     ws = get_bookings_ws()
     new_id = next_id(ws)
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    ws.append_row([new_id, int(schedule_id), name, phone, schedule['date'], now])
+    ws.append_row([new_id, int(schedule_id), name, phone, schedule['date'], now, schedule['time'], script_url, benchmark_url])
     invalidate_cache()
 
     return render_template('confirm.html',
@@ -284,23 +286,33 @@ def toggle_close(sid):
 
 @app.route('/admin/delete-schedule/<int:sid>', methods=['POST'])
 def delete_schedule(sid):
-    # 관련 예약 삭제
-    bws = get_bookings_ws()
-    bookings = bws.get_all_records()
-    rows_to_delete = []
-    for i, b in enumerate(bookings):
-        if int(b['schedule_id']) == sid:
-            rows_to_delete.append(i + 2)
-    for row in sorted(rows_to_delete, reverse=True):
-        bws.delete_rows(row)
-
-    # 스케줄 삭제
+    # 스케줄만 삭제 (예약 데이터는 보존)
     ws = get_schedules_ws()
     records = ws.get_all_records()
     for i, s in enumerate(records):
         if int(s['id']) == sid:
             ws.delete_rows(i + 2)
             break
+    invalidate_cache()
+    return redirect(url_for('admin'))
+
+
+@app.route('/admin/bulk-delete', methods=['POST'])
+def bulk_delete():
+    """기간 내 일정 일괄 삭제 (예약 데이터는 보존)"""
+    start = request.form['start_date']
+    end = request.form['end_date']
+
+    ws = get_schedules_ws()
+    records = ws.get_all_records()
+    rows_to_delete = []
+    for i, s in enumerate(records):
+        if start <= s['date'] <= end:
+            rows_to_delete.append(i + 2)
+
+    for row in sorted(rows_to_delete, reverse=True):
+        ws.delete_rows(row)
+
     invalidate_cache()
     return redirect(url_for('admin'))
 
