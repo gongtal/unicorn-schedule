@@ -159,7 +159,25 @@ def admin():
             'closed': int(s.get('closed', 0)),
         })
 
-    return render_template('admin.html', schedules=schedule_list, bookings=bookings)
+    # 캘린더용 JSON 데이터
+    cal_data = {}
+    for s in schedule_list:
+        d = s['date']
+        if d not in cal_data:
+            cal_data[d] = {'schedules': [], 'bookings': []}
+        cal_data[d]['schedules'].append(s)
+
+    booking_list = []
+    for b in bookings:
+        bd = b.get('date', '')
+        booking_list.append(dict(b))
+        if bd and bd in cal_data:
+            cal_data[bd]['bookings'].append(dict(b))
+
+    return render_template('admin.html',
+                           schedules=schedule_list,
+                           bookings=booking_list,
+                           cal_json=json.dumps(cal_data, ensure_ascii=False, default=str))
 
 
 @app.route('/admin/bulk-add', methods=['POST'])

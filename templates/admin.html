@@ -5,57 +5,86 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>관리자 - 유니콘 촬영 스케쥴</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #fff; color: #333; }
+        button { -webkit-appearance: none; touch-action: manipulation; }
         .header { background: #03C75A; color: #fff; padding: 30px 20px; text-align: center; }
         .header h1 { font-size: 24px; margin-bottom: 4px; }
         .header p { font-size: 13px; opacity: 0.8; }
         .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        .nav-link { display: inline-block; margin-bottom: 12px; color: #03C75A; text-decoration: none; font-size: 14px; }
 
         .section { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
         .section h2 { font-size: 18px; margin-bottom: 16px; color: #03C75A; border-bottom: 2px solid #e8f9ee; padding-bottom: 10px; }
 
+        /* 일괄 추가 폼 */
         .bulk-form { display: flex; flex-direction: column; gap: 16px; }
         .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
         .field { display: flex; flex-direction: column; gap: 4px; }
         .field label { font-size: 13px; font-weight: 500; color: #666; }
-        .field input, .field select { padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .field input { padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
         .field input[type="date"] { width: 155px; }
         .field input[type="time"] { width: 120px; }
         .field input[type="number"] { width: 70px; }
-
         .day-type-group { display: flex; gap: 8px; }
-        .day-btn { padding: 10px 20px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; background: #fff; color: #666; transition: all 0.2s; }
+        .day-btn { padding: 10px 20px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; background: #fff; color: #666; }
         .day-btn.active { border-color: #03C75A; background: #f0faf3; color: #03C75A; }
+        .btn-add { padding: 12px 28px; background: #03C75A; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+        .btn-add:active { background: #02a34a; }
 
-        .btn-add { padding: 12px 28px; background: #03C75A; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-        .btn-add:hover { background: #02b350; }
+        /* 캘린더 */
+        .calendar { background: #fff; border-radius: 12px; overflow: hidden; }
+        .cal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; }
+        .cal-header .month { font-size: 18px; font-weight: 700; }
+        .cal-header button { width: 36px; height: 36px; border: none; background: #f0f0f0; border-radius: 50%; font-size: 18px; cursor: pointer; color: #333; }
+        .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; }
+        .cal-weekdays span { font-size: 13px; font-weight: 600; color: #999; padding: 8px 0; }
+        .cal-weekdays span:first-child { color: #e74c3c; }
+        .cal-weekdays span:last-child { color: #2196F3; }
+        .cal-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; padding-bottom: 8px; }
+        .cal-day { min-height: 70px; padding: 6px; border-radius: 8px; font-size: 13px; position: relative; cursor: default; border: 2px solid transparent; }
+        .cal-day .day-num { font-weight: 600; margin-bottom: 4px; }
+        .cal-day.other-month { opacity: 0.3; }
+        .cal-day.today { background: #fffde7; }
+        .cal-day.has-schedule { cursor: pointer; background: #f0faf3; }
+        .cal-day.has-schedule:hover { border-color: #03C75A; }
+        .cal-day.selected { border-color: #03C75A; background: #e8f9ee; }
+        .cal-day .sunday { color: #e74c3c; }
+        .cal-day .saturday { color: #2196F3; }
+        .cal-day .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 2px; }
+        .cal-day .dot-open { background: #03C75A; }
+        .cal-day .dot-booked { background: #ff9800; }
+        .cal-day .dot-closed { background: #ccc; }
+        .cal-day .dot-full { background: #e74c3c; }
+        .cal-day .count { font-size: 11px; color: #666; margin-top: 2px; }
 
-        table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        th { background: #f0faf3; color: #03C75A; padding: 12px 10px; text-align: left; font-weight: 600; }
-        td { padding: 10px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
-        tr:last-child td { border-bottom: none; }
-
+        /* 날짜 상세 패널 */
+        .detail-panel { display: none; background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .detail-panel.active { display: block; }
+        .detail-panel h3 { font-size: 16px; color: #03C75A; margin-bottom: 16px; }
+        .detail-card { background: #f9f9f9; border-radius: 8px; padding: 14px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+        .detail-card .info-left { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .detail-card .time-badge { background: #03C75A; color: #fff; padding: 4px 12px; border-radius: 6px; font-weight: 600; font-size: 14px; }
+        .detail-card .status { font-size: 13px; }
+        .detail-card .actions { display: flex; gap: 6px; }
         .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
         .badge-open { background: #e8f5e9; color: #2e7d32; }
         .badge-full { background: #fce4ec; color: #c62828; }
         .badge-closed { background: #f5f5f5; color: #999; }
         .badge-booked { background: #fff3e0; color: #e65100; }
 
+        .booking-item { background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 12px 14px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .booking-item .binfo { font-size: 14px; }
+        .booking-item .binfo strong { color: #333; }
+        .booking-item .binfo span { color: #888; font-size: 13px; margin-left: 8px; }
+
         .btn-close { padding: 5px 12px; border: 1px solid #ff6b6b; background: #fff; color: #ff6b6b; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: 500; }
-        .btn-close:hover { background: #ff6b6b; color: #fff; }
+        .btn-close:active { background: #ff6b6b; color: #fff; }
         .btn-open { padding: 5px 12px; border: 1px solid #03C75A; background: #fff; color: #03C75A; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: 500; }
-        .btn-open:hover { background: #03C75A; color: #fff; }
+        .btn-open:active { background: #03C75A; color: #fff; }
         .btn-del { padding: 5px 10px; background: none; color: #ccc; border: none; font-size: 12px; cursor: pointer; }
         .btn-del:hover { color: #ff6b6b; }
-
-        .actions { display: flex; gap: 6px; align-items: center; }
-        .empty-msg { text-align: center; color: #aaa; padding: 30px; }
-        .nav-link { display: inline-block; margin-top: 10px; color: #03C75A; text-decoration: none; font-size: 14px; }
-
-        .weekday { color: #333; }
-        .saturday { color: #2196F3; }
-        .sunday { color: #e74c3c; }
+        .empty-msg { text-align: center; color: #aaa; padding: 20px; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -67,8 +96,8 @@
     <div class="container">
         <a href="/" class="nav-link">&larr; 수강생 페이지로 이동</a>
 
-        <!-- 일괄 일정 추가 -->
-        <div class="section" style="margin-top: 12px;">
+        <!-- 일정 추가 -->
+        <div class="section">
             <h2>일정 일괄 오픈</h2>
             <form class="bulk-form" action="/admin/bulk-add" method="POST">
                 <div class="form-row">
@@ -92,109 +121,197 @@
                 <div class="form-row">
                     <input type="hidden" name="day_type" id="dayTypeInput" value="weekday">
                     <div class="day-type-group">
-                        <button type="button" class="day-btn active" onclick="setDayType(this, 'weekday')">평일</button>
-                        <button type="button" class="day-btn" onclick="setDayType(this, 'weekend')">주말</button>
-                        <button type="button" class="day-btn" onclick="setDayType(this, 'all')">전체</button>
+                        <button type="button" class="day-btn active" id="btn-weekday">평일</button>
+                        <button type="button" class="day-btn" id="btn-weekend">주말</button>
+                        <button type="button" class="day-btn" id="btn-all">전체</button>
                     </div>
                     <button type="submit" class="btn-add">일정 오픈</button>
                 </div>
             </form>
         </div>
 
-        <!-- 등록된 일정 -->
+        <!-- 캘린더 -->
         <div class="section">
-            <h2>일정 현황</h2>
-            {% if schedules %}
-            <table>
-                <thead>
-                    <tr><th>날짜</th><th>요일</th><th>시간</th><th>예약</th><th>상태</th><th></th></tr>
-                </thead>
-                <tbody>
-                    {% for s in schedules %}
-                    <tr>
-                        <td>{{ s.date }}</td>
-                        <td>
-                            {% if s.weekday == '토' %}
-                            <span class="saturday">{{ s.weekday }}</span>
-                            {% elif s.weekday == '일' %}
-                            <span class="sunday">{{ s.weekday }}</span>
-                            {% else %}
-                            <span class="weekday">{{ s.weekday }}</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ s.time }}</td>
-                        <td>{{ s.booked }} / {{ s.max_slots }}</td>
-                        <td>
-                            {% if s.closed %}
-                            <span class="badge badge-closed">마감</span>
-                            {% elif s.booked >= s.max_slots %}
-                            <span class="badge badge-full">정원마감</span>
-                            {% elif s.booked > 0 %}
-                            <span class="badge badge-booked">{{ s.booked }}명 신청</span>
-                            {% else %}
-                            <span class="badge badge-open">예약가능</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <div class="actions">
-                                <form action="/admin/toggle-close/{{ s.id }}" method="POST" style="display:inline">
-                                    {% if s.closed %}
-                                    <button type="submit" class="btn-open">오픈</button>
-                                    {% else %}
-                                    <button type="submit" class="btn-close">마감</button>
-                                    {% endif %}
-                                </form>
-                                <form action="/admin/delete-schedule/{{ s.id }}" method="POST" style="display:inline" onsubmit="return confirm('삭제하시겠습니까?')">
-                                    <button type="submit" class="btn-del">삭제</button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <p class="empty-msg">등록된 일정이 없습니다.</p>
-            {% endif %}
+            <h2>일정 캘린더</h2>
+            <div class="calendar">
+                <div class="cal-header">
+                    <button type="button" id="prevMonth">&#8249;</button>
+                    <span class="month" id="calMonth"></span>
+                    <button type="button" id="nextMonth">&#8250;</button>
+                </div>
+                <div class="cal-weekdays">
+                    <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+                </div>
+                <div class="cal-days" id="calDays"></div>
+            </div>
         </div>
 
-        <!-- 예약 목록 -->
-        <div class="section">
-            <h2>예약 목록</h2>
-            {% if bookings %}
-            <table>
-                <thead>
-                    <tr><th>날짜</th><th>시간</th><th>이름</th><th>전화번호</th><th>신청시간</th><th></th></tr>
-                </thead>
-                <tbody>
-                    {% for b in bookings %}
-                    <tr>
-                        <td>{{ b.date }}</td>
-                        <td>{{ b.time }}</td>
-                        <td>{{ b.name }}</td>
-                        <td>{{ b.phone }}</td>
-                        <td>{{ b.created_at }}</td>
-                        <td>
-                            <form action="/admin/delete-booking/{{ b.id }}" method="POST" style="display:inline" onsubmit="return confirm('이 예약을 삭제하시겠습니까?')">
-                                <button type="submit" class="btn-del">삭제</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <p class="empty-msg">예약 내역이 없습니다.</p>
-            {% endif %}
+        <!-- 날짜 상세 -->
+        <div class="detail-panel" id="detailPanel">
+            <h3 id="detailTitle"></h3>
+            <div id="detailContent"></div>
         </div>
     </div>
 
     <script>
-        function setDayType(btn, value) {
-            document.getElementById('dayTypeInput').value = value;
-            document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+        var calData = {{ cal_json | safe }};
+        var weekNames = ['일', '월', '화', '수', '목', '금', '토'];
+        var today = new Date();
+        var currentYear = today.getFullYear();
+        var currentMonth = today.getMonth();
+
+        // 요일 버튼
+        var dayBtns = {
+            'btn-weekday': 'weekday',
+            'btn-weekend': 'weekend',
+            'btn-all': 'all'
+        };
+        Object.keys(dayBtns).forEach(function(id) {
+            document.getElementById(id).addEventListener('click', function() {
+                document.querySelectorAll('.day-btn').forEach(function(b) { b.classList.remove('active'); });
+                this.classList.add('active');
+                document.getElementById('dayTypeInput').value = dayBtns[id];
+            });
+        });
+
+        // 캘린더 네비게이션
+        document.getElementById('prevMonth').addEventListener('click', function() {
+            currentMonth--;
+            if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+            renderCalendar();
+        });
+        document.getElementById('nextMonth').addEventListener('click', function() {
+            currentMonth++;
+            if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+            renderCalendar();
+        });
+
+        function renderCalendar() {
+            document.getElementById('calMonth').textContent = currentYear + '년 ' + (currentMonth + 1) + '월';
+            var daysEl = document.getElementById('calDays');
+            var firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            var lastDate = new Date(currentYear, currentMonth + 1, 0).getDate();
+            var prevLastDate = new Date(currentYear, currentMonth, 0).getDate();
+
+            var html = '';
+            // 이전 달
+            for (var i = firstDay - 1; i >= 0; i--) {
+                html += '<div class="cal-day other-month"><div class="day-num">' + (prevLastDate - i) + '</div></div>';
+            }
+            // 이번 달
+            for (var d = 1; d <= lastDate; d++) {
+                var mm = String(currentMonth + 1).padStart(2, '0');
+                var dd = String(d).padStart(2, '0');
+                var dateStr = currentYear + '-' + mm + '-' + dd;
+                var dow = new Date(currentYear, currentMonth, d).getDay();
+                var cls = 'cal-day';
+                var isToday = (currentYear === today.getFullYear() && currentMonth === today.getMonth() && d === today.getDate());
+                if (isToday) cls += ' today';
+
+                var dayData = calData[dateStr];
+                var dots = '';
+                var countText = '';
+                if (dayData) {
+                    cls += ' has-schedule';
+                    var scheds = dayData.schedules || [];
+                    var books = dayData.bookings || [];
+                    var openCount = 0, closedCount = 0, bookedCount = books.length;
+                    for (var s = 0; s < scheds.length; s++) {
+                        if (scheds[s].closed) closedCount++;
+                        else openCount++;
+                    }
+                    if (bookedCount > 0) dots += '<span class="dot dot-booked"></span>';
+                    if (openCount > 0) dots += '<span class="dot dot-open"></span>';
+                    if (closedCount > 0) dots += '<span class="dot dot-closed"></span>';
+                    if (bookedCount > 0) countText = '<div class="count">' + bookedCount + '명 예약</div>';
+                }
+
+                var dowClass = dow === 0 ? ' sunday' : (dow === 6 ? ' saturday' : '');
+                html += '<div class="' + cls + '" data-date="' + dateStr + '">';
+                html += '<div class="day-num' + dowClass + '">' + d + '</div>';
+                html += dots + countText;
+                html += '</div>';
+            }
+            // 다음 달
+            var totalCells = firstDay + lastDate;
+            var remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+            for (var i = 1; i <= remaining; i++) {
+                html += '<div class="cal-day other-month"><div class="day-num">' + i + '</div></div>';
+            }
+            daysEl.innerHTML = html;
+
+            // 클릭 이벤트
+            var scheduleDays = daysEl.querySelectorAll('.cal-day.has-schedule');
+            for (var j = 0; j < scheduleDays.length; j++) {
+                scheduleDays[j].addEventListener('click', handleDayClick);
+            }
         }
+
+        function handleDayClick() {
+            var dateStr = this.getAttribute('data-date');
+            document.querySelectorAll('.cal-day').forEach(function(el) { el.classList.remove('selected'); });
+            this.classList.add('selected');
+
+            var dt = new Date(dateStr + 'T00:00:00');
+            var label = dateStr + ' (' + weekNames[dt.getDay()] + ')';
+            document.getElementById('detailTitle').textContent = label + ' 일정';
+
+            var dayData = calData[dateStr];
+            var content = '';
+
+            // 스케줄 목록
+            if (dayData && dayData.schedules) {
+                for (var i = 0; i < dayData.schedules.length; i++) {
+                    var s = dayData.schedules[i];
+                    var statusBadge = '';
+                    if (s.closed) {
+                        statusBadge = '<span class="badge badge-closed">마감</span>';
+                    } else if (s.booked >= s.max_slots) {
+                        statusBadge = '<span class="badge badge-full">정원마감</span>';
+                    } else if (s.booked > 0) {
+                        statusBadge = '<span class="badge badge-booked">' + s.booked + '명 신청</span>';
+                    } else {
+                        statusBadge = '<span class="badge badge-open">예약가능</span>';
+                    }
+
+                    content += '<div class="detail-card">';
+                    content += '<div class="info-left">';
+                    content += '<span class="time-badge">' + s.time + '</span>';
+                    content += '<span class="status">' + s.booked + ' / ' + s.max_slots + '명 ' + statusBadge + '</span>';
+                    content += '</div>';
+                    content += '<div class="actions">';
+                    if (s.closed) {
+                        content += '<form action="/admin/toggle-close/' + s.id + '" method="POST" style="display:inline"><button type="submit" class="btn-open">오픈</button></form>';
+                    } else {
+                        content += '<form action="/admin/toggle-close/' + s.id + '" method="POST" style="display:inline"><button type="submit" class="btn-close">마감</button></form>';
+                    }
+                    content += '<form action="/admin/delete-schedule/' + s.id + '" method="POST" style="display:inline" onsubmit="return confirm(\'삭제하시겠습니까?\')"><button type="submit" class="btn-del">삭제</button></form>';
+                    content += '</div></div>';
+                }
+            }
+
+            // 예약 목록
+            if (dayData && dayData.bookings && dayData.bookings.length > 0) {
+                content += '<h3 style="margin-top:20px; font-size:15px; color:#e65100;">예약자 목록</h3>';
+                for (var b = 0; b < dayData.bookings.length; b++) {
+                    var bk = dayData.bookings[b];
+                    content += '<div class="booking-item">';
+                    content += '<div class="binfo"><strong>' + bk.name + '</strong><span>' + bk.phone + '</span></div>';
+                    content += '<form action="/admin/delete-booking/' + bk.id + '" method="POST" style="display:inline" onsubmit="return confirm(\'삭제하시겠습니까?\')"><button type="submit" class="btn-del">삭제</button></form>';
+                    content += '</div>';
+                }
+            }
+
+            if (!content) {
+                content = '<p class="empty-msg">일정이 없습니다.</p>';
+            }
+
+            document.getElementById('detailContent').innerHTML = content;
+            document.getElementById('detailPanel').classList.add('active');
+            document.getElementById('detailPanel').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        renderCalendar();
     </script>
 </body>
 </html>
