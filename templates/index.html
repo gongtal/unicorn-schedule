@@ -103,9 +103,16 @@
         {% endif %}
     </div>
 
+    <!-- 숨겨진 제출 폼 -->
+    <form id="hiddenForm" method="POST" action="/book" style="display:none;">
+        <input type="hidden" name="schedule_id" id="formScheduleId">
+        <input type="hidden" name="name" id="formName">
+        <input type="hidden" name="phone" id="formPhone">
+    </form>
+
     <!-- Step 1: 이름/전화번호 입력 -->
     <div class="modal-overlay" id="bookingModal">
-        <div class="modal">
+        <div class="modal" onclick="event.stopPropagation()">
             <h3>촬영 신청</h3>
             <div class="selected-info">
                 <strong>선택 날짜</strong> : <span id="bookDate"></span><br>
@@ -126,7 +133,7 @@
 
     <!-- Step 2: 최종 확인 -->
     <div class="modal-overlay" id="confirmModal">
-        <div class="modal">
+        <div class="modal" onclick="event.stopPropagation()">
             <h3>촬영 신청 확인</h3>
             <div class="info">
                 <strong>사무실 주소</strong><br>
@@ -168,47 +175,50 @@
         });
 
         // Step 1 모달: 다음 버튼
-        document.getElementById('nextBtn').addEventListener('click', function() {
+        function goNext(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
             document.getElementById('bookingModal').classList.remove('active');
             document.getElementById('confirmDate').textContent = selectedDate;
             document.getElementById('confirmTime').textContent = selectedTime;
             document.getElementById('confirmName').textContent = document.getElementById('name').value.trim();
             document.getElementById('confirmModal').classList.add('active');
-        });
+        }
+        document.getElementById('nextBtn').addEventListener('click', goNext);
+        document.getElementById('nextBtn').addEventListener('touchend', goNext);
 
         // Step 1 모달: 취소 버튼
-        document.getElementById('cancelBtn').addEventListener('click', function() {
+        function doCancel(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
             document.getElementById('bookingModal').classList.remove('active');
-        });
+        }
+        document.getElementById('cancelBtn').addEventListener('click', doCancel);
+        document.getElementById('cancelBtn').addEventListener('touchend', doCancel);
 
         // Step 2 모달: 아니오 버튼
-        document.getElementById('backBtn').addEventListener('click', function() {
+        function goBack(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
             document.getElementById('confirmModal').classList.remove('active');
             document.getElementById('bookingModal').classList.add('active');
-        });
+        }
+        document.getElementById('backBtn').addEventListener('click', goBack);
+        document.getElementById('backBtn').addEventListener('touchend', goBack);
 
         // Step 2 모달: 예 버튼 (최종 제출)
-        document.getElementById('submitBtn').addEventListener('click', function() {
-            var form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '/book';
-
-            var fields = {
-                schedule_id: selectedId,
-                name: document.getElementById('name').value.trim(),
-                phone: document.getElementById('phone').value.trim()
-            };
-
-            for (var k in fields) {
-                var input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = k;
-                input.value = fields[k];
-                form.appendChild(input);
-            }
-
-            document.body.appendChild(form);
-            form.submit();
+        document.getElementById('submitBtn').addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('formScheduleId').value = selectedId;
+            document.getElementById('formName').value = document.getElementById('name').value.trim();
+            document.getElementById('formPhone').value = document.getElementById('phone').value.trim();
+            document.getElementById('hiddenForm').submit();
+        });
+        document.getElementById('submitBtn').addEventListener('touchend', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('formScheduleId').value = selectedId;
+            document.getElementById('formName').value = document.getElementById('name').value.trim();
+            document.getElementById('formPhone').value = document.getElementById('phone').value.trim();
+            document.getElementById('hiddenForm').submit();
         });
 
         // 폼 검증
