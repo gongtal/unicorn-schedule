@@ -259,7 +259,18 @@
             var dayData = calData[dateStr];
             var content = '';
 
-            // 스케줄 목록
+            // 시간별로 예약자를 그룹핑
+            var bookingsBySchedule = {};
+            if (dayData && dayData.bookings) {
+                for (var b = 0; b < dayData.bookings.length; b++) {
+                    var bk = dayData.bookings[b];
+                    var sid = String(bk.schedule_id);
+                    if (!bookingsBySchedule[sid]) bookingsBySchedule[sid] = [];
+                    bookingsBySchedule[sid].push(bk);
+                }
+            }
+
+            // 스케줄 + 해당 예약자 표시
             if (dayData && dayData.schedules) {
                 for (var i = 0; i < dayData.schedules.length; i++) {
                     var s = dayData.schedules[i];
@@ -287,18 +298,16 @@
                     }
                     content += '<form action="/admin/delete-schedule/' + s.id + '" method="POST" style="display:inline" onsubmit="return confirm(\'삭제하시겠습니까?\')"><button type="submit" class="btn-del">삭제</button></form>';
                     content += '</div></div>';
-                }
-            }
 
-            // 예약 목록
-            if (dayData && dayData.bookings && dayData.bookings.length > 0) {
-                content += '<h3 style="margin-top:20px; font-size:15px; color:#e65100;">예약자 목록</h3>';
-                for (var b = 0; b < dayData.bookings.length; b++) {
-                    var bk = dayData.bookings[b];
-                    content += '<div class="booking-item">';
-                    content += '<div class="binfo"><strong>' + bk.name + '</strong><span>' + bk.phone + '</span></div>';
-                    content += '<form action="/admin/delete-booking/' + bk.id + '" method="POST" style="display:inline" onsubmit="return confirm(\'삭제하시겠습니까?\')"><button type="submit" class="btn-del">삭제</button></form>';
-                    content += '</div>';
+                    // 이 시간에 해당하는 예약자 표시
+                    var slotBookings = bookingsBySchedule[String(s.id)] || [];
+                    for (var j = 0; j < slotBookings.length; j++) {
+                        var sb = slotBookings[j];
+                        content += '<div class="booking-item" style="margin-left:16px; border-left:3px solid #03C75A;">';
+                        content += '<div class="binfo"><strong>' + sb.name + '</strong><span>' + sb.phone + '</span></div>';
+                        content += '<form action="/admin/delete-booking/' + sb.id + '" method="POST" style="display:inline" onsubmit="return confirm(\'삭제하시겠습니까?\')"><button type="submit" class="btn-del">삭제</button></form>';
+                        content += '</div>';
+                    }
                 }
             }
 
