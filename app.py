@@ -183,7 +183,10 @@ def book():
     schedule_id = request.form['schedule_id']
     name = request.form['name']
     phone = request.form['phone']
-    notion_url = request.form.get('notion_url', '')
+    notion_url = request.form.get('notion_url', '').strip()
+
+    if not notion_url:
+        return '노션 링크를 입력해주세요.', 400
 
     schedules = get_all_schedules()
     schedule = None
