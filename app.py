@@ -4,6 +4,7 @@ import gspread
 import json
 import os
 import time
+import threading
 
 app = Flask(__name__)
 app.config['PROPAGATE_EXCEPTIONS'] = True
@@ -20,7 +21,8 @@ _gc_cache = None
 _sh_cache = None
 _ws_cache = {}
 _data_cache = {'schedules': None, 'bookings': None, 'time': 0}
-CACHE_TTL = 120  # 120초 캐시
+_cache_lock = threading.Lock()
+CACHE_TTL = 300  # 5분 캐시
 
 
 def get_gc():
@@ -59,12 +61,7 @@ def get_bookings_ws():
     return _ws_cache['bookings']
 
 
-def invalidate_cache():
-    _data_cache['time'] = 0
-
-
 def _parse_records(values):
-    """raw values를 records로 변환 (get_all_records 대신 batch_get 결과용)"""
     if not values or len(values) < 2:
         return []
     headers = values[0]
@@ -73,7 +70,6 @@ def _parse_records(values):
         record = {}
         for i, h in enumerate(headers):
             val = row[i] if i < len(row) else ''
-            # 숫자 변환 시도
             if isinstance(val, str) and val:
                 try:
                     val = int(val)
@@ -87,38 +83,8 @@ def _parse_records(values):
     return records
 
 
-def get_all_schedules():
-    now = time.time()
-    if _data_cache['schedules'] is not None and (now - _data_cache['time']) < CACHE_TTL:
-        return _data_cache['schedules']
-    ws = get_schedules_ws()
-    records = ws.get_all_records()
-    _data_cache['schedules'] = records
-    _data_cache['time'] = now
-    return records
-
-
-def get_all_bookings():
-    now = time.time()
-    if _data_cache['bookings'] is not None and (now - _data_cache['time']) < CACHE_TTL:
-        return _data_cache['bookings']
-    ws = get_bookings_ws()
-    records = ws.get_all_records()
-    _data_cache['bookings'] = records
-    _data_cache['time'] = now
-    return records
-
-
-def get_all_data():
-    """스케줄과 예약을 한번에 가져오기 (batch_get으로 API 1회 호출)"""
-    now = time.time()
-    if (_data_cache['schedules'] is not None and
-        _data_cache['bookings'] is not None and
-        (now - _data_cache['time']) < CACHE_TTL):
-        return _data_cache['schedules'], _data_cache['bookings']
-
-    sh = get_sheet()
-    # batch_get으로 2개 시트를 1번의 API 호출로 가져옴
+def _fetch_and_cache():
+    """Google Sheets에서 데이터를 가져와 캐시에 저장"""
     try:
         s_ws = get_schedules_ws()
         b_ws = get_bookings_ws()
@@ -127,32 +93,65 @@ def get_all_data():
         schedules = _parse_records(s_values)
         bookings = _parse_records(b_values)
     except Exception:
-        # fallback
-        s_ws = sh.worksheet('schedules')
-        b_ws = sh.worksheet('bookings')
-        schedules = s_ws.get_all_records()
-        bookings = b_ws.get_all_records()
+        sh = get_sheet()
+        schedules = sh.worksheet('schedules').get_all_records()
+        bookings = sh.worksheet('bookings').get_all_records()
+    with _cache_lock:
+        _data_cache['schedules'] = schedules
+        _data_cache['bookings'] = bookings
+        _data_cache['time'] = time.time()
 
-    _data_cache['schedules'] = schedules
-    _data_cache['bookings'] = bookings
-    _data_cache['time'] = now
-    return schedules, bookings
+
+def _background_refresh():
+    """백그라운드에서 캐시 갱신 (사용자 대기 없음)"""
+    t = threading.Thread(target=_fetch_and_cache, daemon=True)
+    t.start()
+
+
+def invalidate_cache():
+    """캐시 무효화 후 백그라운드에서 즉시 새로 로드"""
+    _data_cache['time'] = 0
+    _background_refresh()
+
+
+def get_all_schedules():
+    with _cache_lock:
+        if _data_cache['schedules'] is not None and (time.time() - _data_cache['time']) < CACHE_TTL:
+            return _data_cache['schedules']
+    _fetch_and_cache()
+    return _data_cache['schedules']
+
+
+def get_all_bookings():
+    with _cache_lock:
+        if _data_cache['bookings'] is not None and (time.time() - _data_cache['time']) < CACHE_TTL:
+            return _data_cache['bookings']
+    _fetch_and_cache()
+    return _data_cache['bookings']
+
+
+def get_all_data():
+    with _cache_lock:
+        if (_data_cache['schedules'] is not None and
+            _data_cache['bookings'] is not None and
+            (time.time() - _data_cache['time']) < CACHE_TTL):
+            return _data_cache['schedules'], _data_cache['bookings']
+    _fetch_and_cache()
+    return _data_cache['schedules'], _data_cache['bookings']
 
 
 def next_id_from_cache(records):
-    """캐시된 records에서 다음 ID 계산 (API 호출 불필요)"""
     if not records:
         return 1
     ids = [int(r['id']) for r in records if r.get('id')]
     return max(ids) + 1 if ids else 1
 
 
-def next_id(ws):
-    values = ws.col_values(1)  # id 컬럼
-    if len(values) <= 1:
-        return 1
-    ids = [int(v) for v in values[1:] if v]
-    return max(ids) + 1 if ids else 1
+# 서버 시작 시 캐시 워밍업
+try:
+    _fetch_and_cache()
+except Exception:
+    pass
 
 
 # ── 수강생 페이지 ──
@@ -265,7 +264,9 @@ def admin():
     for b in bookings:
         bd = b.get('date', '')
         booking_list.append(dict(b))
-        if bd and bd in cal_data:
+        if bd:
+            if bd not in cal_data:
+                cal_data[bd] = {'schedules': [], 'bookings': []}
             cal_data[bd]['bookings'].append(dict(b))
 
     return render_template('admin.html',
