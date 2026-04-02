@@ -12,17 +12,16 @@ app.config['PROPAGATE_EXCEPTIONS'] = True
 SPREADSHEET_ID = os.environ.get('SPREADSHEET_ID', '1c8vUU9XshrPFD6OzrXyoEmOKIl4mS-jow3P_p0w-p1Q')
 WEEKDAY_NAMES = ['월', '화', '수', '목', '금', '토', '일']
 
-# Google Sheets 인증
 SERVICE_ACCOUNT_FILE = os.path.join(os.path.dirname(__file__), 'service-account.json')
 SERVICE_ACCOUNT_INFO = os.environ.get('GOOGLE_CREDENTIALS', '')
 
-# 캐시
+# ── 캐시 ──
 _gc_cache = None
 _sh_cache = None
 _ws_cache = {}
 _data_cache = {'schedules': None, 'bookings': None, 'time': 0}
 _cache_lock = threading.Lock()
-CACHE_TTL = 300  # 5분 캐시
+CACHE_TTL = 300  # 5분
 
 
 def get_gc():
@@ -44,8 +43,7 @@ def get_gc():
 def get_sheet():
     global _sh_cache
     if _sh_cache is None:
-        gc = get_gc()
-        _sh_cache = gc.open_by_key(SPREADSHEET_ID)
+        _sh_cache = get_gc().open_by_key(SPREADSHEET_ID)
     return _sh_cache
 
 
@@ -61,73 +59,56 @@ def get_bookings_ws():
     return _ws_cache['bookings']
 
 
-def _parse_records(values):
-    if not values or len(values) < 2:
-        return []
-    headers = values[0]
-    records = []
-    for row in values[1:]:
-        record = {}
-        for i, h in enumerate(headers):
-            val = row[i] if i < len(row) else ''
-            if isinstance(val, str) and val:
-                try:
-                    val = int(val)
-                except ValueError:
-                    try:
-                        val = float(val)
-                    except ValueError:
-                        pass
-            record[h] = val
-        records.append(record)
-    return records
+# ── 유틸 ──
 
+def is_closed(val):
+    """closed 값을 안전하게 판별 (int, str, bool, 빈값 모두 처리)"""
+    if val is None or val == '':
+        return False
+    return str(val).strip() in ('1', 'TRUE', 'true', 'True')
+
+
+def safe_int(val, default=0):
+    """안전한 int 변환"""
+    if val is None or val == '':
+        return default
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
+
+
+def next_id_from_cache(records):
+    if not records:
+        return 1
+    ids = [safe_int(r.get('id')) for r in records]
+    ids = [i for i in ids if i > 0]
+    return max(ids) + 1 if ids else 1
+
+
+# ── 데이터 로드/캐시 ──
 
 def _fetch_and_cache():
-    """Google Sheets에서 데이터를 가져와 캐시에 저장"""
-    try:
-        s_ws = get_schedules_ws()
-        b_ws = get_bookings_ws()
-        s_values = s_ws.get_all_values()
-        b_values = b_ws.get_all_values()
-        schedules = _parse_records(s_values)
-        bookings = _parse_records(b_values)
-    except Exception:
-        sh = get_sheet()
-        schedules = sh.worksheet('schedules').get_all_records()
-        bookings = sh.worksheet('bookings').get_all_records()
+    """Google Sheets에서 데이터를 동기적으로 가져와 캐시 저장"""
+    s_ws = get_schedules_ws()
+    b_ws = get_bookings_ws()
+    schedules = s_ws.get_all_records()
+    bookings = b_ws.get_all_records()
     with _cache_lock:
         _data_cache['schedules'] = schedules
         _data_cache['bookings'] = bookings
         _data_cache['time'] = time.time()
 
 
-def _background_refresh():
-    """백그라운드에서 캐시 갱신 (사용자 대기 없음)"""
-    t = threading.Thread(target=_fetch_and_cache, daemon=True)
-    t.start()
-
-
-def invalidate_cache():
-    """캐시 무효화 후 백그라운드에서 즉시 새로 로드"""
+def refresh_cache_sync():
+    """쓰기 후 즉시 동기 갱신 (다음 페이지 로드가 최신 데이터 사용)"""
     _data_cache['time'] = 0
-    _background_refresh()
-
-
-def get_all_schedules():
-    with _cache_lock:
-        if _data_cache['schedules'] is not None and (time.time() - _data_cache['time']) < CACHE_TTL:
-            return _data_cache['schedules']
     _fetch_and_cache()
-    return _data_cache['schedules']
 
 
-def get_all_bookings():
-    with _cache_lock:
-        if _data_cache['bookings'] is not None and (time.time() - _data_cache['time']) < CACHE_TTL:
-            return _data_cache['bookings']
-    _fetch_and_cache()
-    return _data_cache['bookings']
+def refresh_cache_bg():
+    """백그라운드 갱신 (읽기 전용 접근 시)"""
+    threading.Thread(target=_fetch_and_cache, daemon=True).start()
 
 
 def get_all_data():
@@ -140,11 +121,14 @@ def get_all_data():
     return _data_cache['schedules'], _data_cache['bookings']
 
 
-def next_id_from_cache(records):
-    if not records:
-        return 1
-    ids = [int(r['id']) for r in records if r.get('id')]
-    return max(ids) + 1 if ids else 1
+def get_all_schedules():
+    data = get_all_data()
+    return data[0]
+
+
+def get_all_bookings():
+    data = get_all_data()
+    return data[1]
 
 
 # 서버 시작 시 캐시 워밍업
@@ -163,30 +147,30 @@ def index():
 
     booking_counts = {}
     for b in bookings:
-        sid = str(b['schedule_id'])
-        booking_counts[sid] = booking_counts.get(sid, 0) + 1
+        sid = str(b.get('schedule_id', ''))
+        if sid:
+            booking_counts[sid] = booking_counts.get(sid, 0) + 1
 
     schedule_data = {}
     for s in schedules:
-        if str(s.get('closed', 0)) == '1' or s['closed'] == 1:
+        if is_closed(s.get('closed')):
             continue
-        if s['date'] < today:
+        date_str = str(s.get('date', ''))
+        if not date_str or date_str < today:
             continue
         booked = booking_counts.get(str(s['id']), 0)
-        max_slots = int(s['max_slots'])
+        max_slots = safe_int(s.get('max_slots'), 1)
         if booked >= max_slots:
             continue
 
-        d = s['date']
-        if d not in schedule_data:
-            schedule_data[d] = []
-        schedule_data[d].append({
+        if date_str not in schedule_data:
+            schedule_data[date_str] = []
+        schedule_data[date_str].append({
             'id': s['id'],
-            'time': s['time'],
+            'time': s.get('time', ''),
             'remaining': max_slots - booked
         })
 
-    # 날짜순 정렬
     schedule_data = dict(sorted(schedule_data.items()))
 
     return render_template('index.html',
@@ -204,7 +188,7 @@ def book():
     schedules = get_all_schedules()
     schedule = None
     for s in schedules:
-        if str(s['id']) == str(schedule_id) and str(s.get('closed', 0)) != '1' and s.get('closed', 0) != 1:
+        if str(s['id']) == str(schedule_id) and not is_closed(s.get('closed')):
             schedule = s
             break
 
@@ -212,19 +196,19 @@ def book():
         return '잘못된 요청입니다.', 400
 
     bookings = get_all_bookings()
-    booked = sum(1 for b in bookings if str(b['schedule_id']) == str(schedule_id))
-    if booked >= int(schedule['max_slots']):
+    booked = sum(1 for b in bookings if str(b.get('schedule_id', '')) == str(schedule_id))
+    if booked >= safe_int(schedule.get('max_slots'), 1):
         return '해당 시간은 이미 마감되었습니다.', 400
 
     ws = get_bookings_ws()
     new_id = next_id_from_cache(bookings)
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    ws.append_row([new_id, int(schedule_id), name, phone, schedule['date'], now, schedule['time'], notion_url])
-    invalidate_cache()
+    ws.append_row([new_id, int(schedule_id), name, phone, schedule['date'], now, schedule.get('time', ''), notion_url])
+    refresh_cache_sync()
 
     return render_template('confirm.html',
                            date=schedule['date'],
-                           time=schedule['time'],
+                           time=schedule.get('time', ''),
                            name=name)
 
 
@@ -236,20 +220,27 @@ def admin():
 
     booking_counts = {}
     for b in bookings:
-        sid = str(b['schedule_id'])
-        booking_counts[sid] = booking_counts.get(sid, 0) + 1
+        sid = str(b.get('schedule_id', ''))
+        if sid:
+            booking_counts[sid] = booking_counts.get(sid, 0) + 1
 
     schedule_list = []
     for s in schedules:
-        dt = datetime.strptime(s['date'], '%Y-%m-%d')
+        date_str = str(s.get('date', ''))
+        if not date_str:
+            continue
+        try:
+            dt = datetime.strptime(date_str, '%Y-%m-%d')
+        except ValueError:
+            continue
         schedule_list.append({
             'id': s['id'],
-            'date': s['date'],
+            'date': date_str,
             'weekday': WEEKDAY_NAMES[dt.weekday()],
-            'time': s['time'],
-            'max_slots': int(s['max_slots']),
+            'time': s.get('time', ''),
+            'max_slots': safe_int(s.get('max_slots'), 1),
             'booked': booking_counts.get(str(s['id']), 0),
-            'closed': int(s.get('closed', 0)),
+            'closed': 1 if is_closed(s.get('closed')) else 0,
         })
 
     # 캘린더용 JSON 데이터
@@ -262,7 +253,7 @@ def admin():
 
     booking_list = []
     for b in bookings:
-        bd = b.get('date', '')
+        bd = str(b.get('date', ''))
         booking_list.append(dict(b))
         if bd:
             if bd not in cal_data:
@@ -288,7 +279,7 @@ def bulk_add():
 
     ws = get_schedules_ws()
     existing = get_all_schedules()
-    existing_set = {(s['date'], s['time']) for s in existing}
+    existing_set = {(str(s.get('date', '')), str(s.get('time', ''))) for s in existing}
     new_id = next_id_from_cache(existing)
 
     rows_to_add = []
@@ -313,7 +304,7 @@ def bulk_add():
 
     if rows_to_add:
         ws.append_rows(rows_to_add)
-    invalidate_cache()
+    refresh_cache_sync()
 
     return redirect(url_for('admin'))
 
@@ -323,31 +314,29 @@ def toggle_close(sid):
     ws = get_schedules_ws()
     records = get_all_schedules()
     for i, s in enumerate(records):
-        if int(s['id']) == sid:
-            row_num = i + 2  # 헤더 제외
-            current = int(s.get('closed', 0))
-            ws.update_cell(row_num, 5, 0 if current else 1)  # E열 = closed
+        if safe_int(s.get('id')) == sid:
+            row_num = i + 2
+            currently_closed = is_closed(s.get('closed'))
+            ws.update_cell(row_num, 5, 0 if currently_closed else 1)
             break
-    invalidate_cache()
+    refresh_cache_sync()
     return redirect(url_for('admin'))
 
 
 @app.route('/admin/delete-schedule/<int:sid>', methods=['POST'])
 def delete_schedule(sid):
-    # 스케줄만 삭제 (예약 데이터는 보존)
     ws = get_schedules_ws()
     records = get_all_schedules()
     for i, s in enumerate(records):
-        if int(s['id']) == sid:
+        if safe_int(s.get('id')) == sid:
             ws.delete_rows(i + 2)
             break
-    invalidate_cache()
+    refresh_cache_sync()
     return redirect(url_for('admin'))
 
 
 @app.route('/admin/bulk-delete', methods=['POST'])
 def bulk_delete():
-    """기간 내 일정 일괄 삭제 (예약 데이터는 보존)"""
     start = request.form['start_date']
     end = request.form['end_date']
 
@@ -355,13 +344,14 @@ def bulk_delete():
     records = get_all_schedules()
     rows_to_delete = []
     for i, s in enumerate(records):
-        if start <= s['date'] <= end:
+        d = str(s.get('date', ''))
+        if d and start <= d <= end:
             rows_to_delete.append(i + 2)
 
     for row in sorted(rows_to_delete, reverse=True):
         ws.delete_rows(row)
 
-    invalidate_cache()
+    refresh_cache_sync()
     return redirect(url_for('admin'))
 
 
@@ -370,10 +360,10 @@ def delete_booking(bid):
     ws = get_bookings_ws()
     records = get_all_bookings()
     for i, b in enumerate(records):
-        if int(b['id']) == bid:
+        if safe_int(b.get('id')) == bid:
             ws.delete_rows(i + 2)
             break
-    invalidate_cache()
+    refresh_cache_sync()
     return redirect(url_for('admin'))
 
 
@@ -388,7 +378,9 @@ def health():
         count = len(ws.get_all_records())
         return jsonify({'status': 'ok', 'has_creds': has_creds, 'has_sheet': has_sheet, 'schedules': count})
     except Exception as e:
-        return jsonify({'status': 'error', 'error': str(e), 'has_creds': bool(os.environ.get('GOOGLE_CREDENTIALS', '')), 'has_sheet': bool(os.environ.get('SPREADSHEET_ID', ''))})
+        return jsonify({'status': 'error', 'error': str(e),
+                        'has_creds': bool(os.environ.get('GOOGLE_CREDENTIALS', '')),
+                        'has_sheet': bool(os.environ.get('SPREADSHEET_ID', ''))})
 
 
 if __name__ == '__main__':
