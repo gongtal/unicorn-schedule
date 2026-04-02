@@ -101,14 +101,49 @@ def _fetch_and_cache():
 
 
 def refresh_cache_sync():
-    """쓰기 후 즉시 동기 갱신 (다음 페이지 로드가 최신 데이터 사용)"""
+    """쓰기 후 즉시 동기 갱신 + 예약현황 시트 업데이트"""
     _data_cache['time'] = 0
     _fetch_and_cache()
+    # 백그라운드에서 예약현황 시트 갱신
+    threading.Thread(target=_update_summary_sheet, daemon=True).start()
 
 
 def refresh_cache_bg():
     """백그라운드 갱신 (읽기 전용 접근 시)"""
     threading.Thread(target=_fetch_and_cache, daemon=True).start()
+
+
+def _update_summary_sheet():
+    """예약현황 시트를 날짜/시간순으로 갱신"""
+    try:
+        sh = get_sheet()
+        try:
+            ws = sh.worksheet('예약현황')
+        except gspread.exceptions.WorksheetNotFound:
+            ws = sh.add_worksheet(title='예약현황', rows=200, cols=6)
+
+        with _cache_lock:
+            bookings = list(_data_cache.get('bookings') or [])
+
+        # 날짜 → 시간순 정렬
+        bookings.sort(key=lambda b: (str(b.get('date', '')), str(b.get('time', '')), str(b.get('name', ''))))
+
+        rows = [['날짜', '시간', '이름', '전화번호', '노션 링크', '신청일시']]
+        for b in bookings:
+            rows.append([
+                str(b.get('date', '')),
+                str(b.get('time', '')),
+                str(b.get('name', '')),
+                str(b.get('phone', '')),
+                str(b.get('notion_url', '')),
+                str(b.get('created_at', '')),
+            ])
+
+        ws.clear()
+        if rows:
+            ws.update(range_name='A1', values=rows)
+    except Exception:
+        pass
 
 
 def get_all_data():
@@ -131,9 +166,10 @@ def get_all_bookings():
     return data[1]
 
 
-# 서버 시작 시 캐시 워밍업
+# 서버 시작 시 캐시 워밍업 + 예약현황 시트 초기화
 try:
     _fetch_and_cache()
+    threading.Thread(target=_update_summary_sheet, daemon=True).start()
 except Exception:
     pass
 
