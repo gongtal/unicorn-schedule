@@ -82,7 +82,7 @@
 
     <div class="container">
         <div style="background:#fff8e1; border-left:4px solid #ff9800; padding:16px; border-radius:8px; margin-bottom:16px; font-size:14px; line-height:1.8; color:#333;">
-            브랜딩 영상 3개가 촬영되며, 수업시간에 배운 내용을 토대로 <strong>벤치마킹할 영상 3개를 사전에 보내주셔야 합니다.</strong><br>
+            브랜딩 영상 3개가 촬영되며, 수업시간에 배운 내용을 토대로 <strong>대본과 벤치마킹할 영상 3개를 노션 한 페이지에 정리</strong>하여 링크를 공유해주세요.<br>
             준비시간을 고려해서 일정을 선택해주세요.
         </div>
         <div class="calendar">
@@ -112,8 +112,7 @@
         <input type="hidden" name="schedule_id" id="formScheduleId">
         <input type="hidden" name="name" id="formName">
         <input type="hidden" name="phone" id="formPhone">
-        <input type="hidden" name="script_url" id="formScript">
-        <input type="hidden" name="benchmark_url" id="formBenchmark">
+        <input type="hidden" name="notion_url" id="formNotion">
     </form>
 
     <!-- Step 1: 이름/전화번호 입력 -->
@@ -133,12 +132,9 @@
                 <input type="tel" id="phone" placeholder="010-0000-0000" autocomplete="tel">
             </div>
             <div class="form-group">
-                <label>대본 링크</label>
-                <input type="url" id="script_url" placeholder="대본 파일 링크 (구글드라이브 등)">
-            </div>
-            <div class="form-group">
-                <label>벤치마킹 영상 링크</label>
-                <input type="url" id="benchmark_url" placeholder="벤치마킹 영상 3개 링크">
+                <label>노션 링크</label>
+                <input type="url" id="notion_url" placeholder="노션 페이지 링크를 붙여넣어주세요">
+                <p style="font-size:12px; color:#888; margin-top:6px; line-height:1.6;">대본과 벤치마킹 영상 3개를 노션 한 페이지에 정리한 뒤 링크를 공유해주세요.</p>
             </div>
             <button type="button" class="btn-full btn-green" id="nextBtn" disabled>다음</button>
             <button type="button" class="btn-full btn-gray" id="cancelBtn">취소</button>
@@ -224,8 +220,7 @@
             document.getElementById('formScheduleId').value = selectedId;
             document.getElementById('formName').value = document.getElementById('name').value.trim();
             document.getElementById('formPhone').value = document.getElementById('phone').value.trim();
-            document.getElementById('formScript').value = document.getElementById('script_url').value.trim();
-            document.getElementById('formBenchmark').value = document.getElementById('benchmark_url').value.trim();
+            document.getElementById('formNotion').value = document.getElementById('notion_url').value.trim();
             document.getElementById('hiddenForm').submit();
         }
         document.getElementById('submitBtn').addEventListener('click', doSubmit);
@@ -320,8 +315,7 @@
             document.getElementById('bookTime').textContent = selectedTime;
             document.getElementById('name').value = '';
             document.getElementById('phone').value = '';
-            document.getElementById('script_url').value = '';
-            document.getElementById('benchmark_url').value = '';
+            document.getElementById('notion_url').value = '';
             document.getElementById('nextBtn').disabled = true;
             document.getElementById('bookingModal').classList.add('active');
             setTimeout(function() { document.getElementById('name').focus(); }, 200);

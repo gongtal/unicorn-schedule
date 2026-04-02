@@ -85,6 +85,22 @@
         .btn-del { padding: 5px 10px; background: none; color: #ccc; border: none; font-size: 12px; cursor: pointer; }
         .btn-del:hover { color: #ff6b6b; }
         .empty-msg { text-align: center; color: #aaa; padding: 20px; font-size: 14px; }
+
+        /* 예약 현황 리스트 */
+        .booking-list-section { margin-bottom: 20px; }
+        .date-group { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .date-group-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        .date-group-header .date-label { font-size: 16px; font-weight: 700; color: #333; }
+        .date-group-header .date-count { font-size: 13px; color: #fff; background: #03C75A; padding: 3px 10px; border-radius: 12px; font-weight: 600; }
+        .booking-row { display: flex; align-items: center; padding: 10px 14px; border-bottom: 1px solid #f0f0f0; gap: 12px; font-size: 14px; }
+        .booking-row:last-child { border-bottom: none; }
+        .booking-row .bk-time { background: #f0faf3; color: #03C75A; padding: 3px 10px; border-radius: 6px; font-weight: 600; font-size: 13px; white-space: nowrap; }
+        .booking-row .bk-name { font-weight: 600; color: #333; min-width: 60px; }
+        .booking-row .bk-phone { color: #888; font-size: 13px; }
+        .booking-row .bk-notion { margin-left: auto; }
+        .booking-row .bk-notion a { color: #03C75A; font-size: 13px; text-decoration: none; }
+        .booking-row .bk-notion a:hover { text-decoration: underline; }
+        .no-bookings { text-align: center; color: #aaa; padding: 30px; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -162,6 +178,12 @@
                 </div>
                 <div class="cal-days" id="calDays"></div>
             </div>
+        </div>
+
+        <!-- 예약 현황 리스트 -->
+        <div class="section">
+            <h2>신청 현황</h2>
+            <div class="booking-list-section" id="bookingListSection"></div>
         </div>
 
         <!-- 날짜 상세 -->
@@ -324,8 +346,7 @@
                         content += '<div class="booking-item" style="margin-left:16px; border-left:3px solid #03C75A;">';
                         content += '<div class="binfo">';
                         content += '<strong>' + sb.name + '</strong><span>' + sb.phone + '</span>';
-                        if (sb.script_url) content += '<br><a href="' + sb.script_url + '" target="_blank" style="color:#03C75A; font-size:13px;">대본 보기</a>';
-                        if (sb.benchmark_url) content += ' <a href="' + sb.benchmark_url + '" target="_blank" style="color:#2196F3; font-size:13px;">벤치마킹 영상</a>';
+                        if (sb.notion_url) content += '<br><a href="' + sb.notion_url + '" target="_blank" style="color:#03C75A; font-size:13px;">노션 링크</a>';
                         content += '</div>';
                         content += '<form action="/admin/delete-booking/' + sb.id + '" method="POST" style="display:inline" onsubmit="return confirm(\'삭제하시겠습니까?\')"><button type="submit" class="btn-del">삭제</button></form>';
                         content += '</div>';
@@ -343,6 +364,55 @@
         }
 
         renderCalendar();
+        renderBookingList();
+
+        function renderBookingList() {
+            var container = document.getElementById('bookingListSection');
+            // 예약이 있는 날짜만 수집 후 정렬
+            var dates = [];
+            for (var dateStr in calData) {
+                var dayData = calData[dateStr];
+                if (dayData.bookings && dayData.bookings.length > 0) {
+                    dates.push(dateStr);
+                }
+            }
+            dates.sort();
+
+            if (dates.length === 0) {
+                container.innerHTML = '<p class="no-bookings">신청 내역이 없습니다.</p>';
+                return;
+            }
+
+            var html = '';
+            for (var i = 0; i < dates.length; i++) {
+                var d = dates[i];
+                var dt = new Date(d + 'T00:00:00');
+                var label = d + ' (' + weekNames[dt.getDay()] + ')';
+                var bookings = calData[d].bookings;
+
+                html += '<div class="date-group">';
+                html += '<div class="date-group-header">';
+                html += '<span class="date-label">' + label + '</span>';
+                html += '<span class="date-count">' + bookings.length + '명</span>';
+                html += '</div>';
+
+                for (var j = 0; j < bookings.length; j++) {
+                    var b = bookings[j];
+                    html += '<div class="booking-row">';
+                    html += '<span class="bk-time">' + (b.time || '') + '</span>';
+                    html += '<span class="bk-name">' + b.name + '</span>';
+                    html += '<span class="bk-phone">' + b.phone + '</span>';
+                    if (b.notion_url) {
+                        html += '<span class="bk-notion"><a href="' + b.notion_url + '" target="_blank">노션</a></span>';
+                    }
+                    html += '</div>';
+                }
+
+                html += '</div>';
+            }
+
+            container.innerHTML = html;
+        }
     </script>
 </body>
 </html>

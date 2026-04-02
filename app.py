@@ -18,8 +18,9 @@ SERVICE_ACCOUNT_INFO = os.environ.get('GOOGLE_CREDENTIALS', '')
 # 캐시
 _gc_cache = None
 _sh_cache = None
+_ws_cache = {}
 _data_cache = {'schedules': None, 'bookings': None, 'time': 0}
-CACHE_TTL = 10  # 10초 캐시
+CACHE_TTL = 120  # 120초 캐시
 
 
 def get_gc():
@@ -47,15 +48,43 @@ def get_sheet():
 
 
 def get_schedules_ws():
-    return get_sheet().worksheet('schedules')
+    if 'schedules' not in _ws_cache:
+        _ws_cache['schedules'] = get_sheet().worksheet('schedules')
+    return _ws_cache['schedules']
 
 
 def get_bookings_ws():
-    return get_sheet().worksheet('bookings')
+    if 'bookings' not in _ws_cache:
+        _ws_cache['bookings'] = get_sheet().worksheet('bookings')
+    return _ws_cache['bookings']
 
 
 def invalidate_cache():
     _data_cache['time'] = 0
+
+
+def _parse_records(values):
+    """raw values를 records로 변환 (get_all_records 대신 batch_get 결과용)"""
+    if not values or len(values) < 2:
+        return []
+    headers = values[0]
+    records = []
+    for row in values[1:]:
+        record = {}
+        for i, h in enumerate(headers):
+            val = row[i] if i < len(row) else ''
+            # 숫자 변환 시도
+            if isinstance(val, str) and val:
+                try:
+                    val = int(val)
+                except ValueError:
+                    try:
+                        val = float(val)
+                    except ValueError:
+                        pass
+            record[h] = val
+        records.append(record)
+    return records
 
 
 def get_all_schedules():
@@ -81,7 +110,7 @@ def get_all_bookings():
 
 
 def get_all_data():
-    """스케줄과 예약을 한번에 가져오기 (API 호출 최소화)"""
+    """스케줄과 예약을 한번에 가져오기 (batch_get으로 API 1회 호출)"""
     now = time.time()
     if (_data_cache['schedules'] is not None and
         _data_cache['bookings'] is not None and
@@ -89,14 +118,33 @@ def get_all_data():
         return _data_cache['schedules'], _data_cache['bookings']
 
     sh = get_sheet()
-    s_ws = sh.worksheet('schedules')
-    b_ws = sh.worksheet('bookings')
-    schedules = s_ws.get_all_records()
-    bookings = b_ws.get_all_records()
+    # batch_get으로 2개 시트를 1번의 API 호출로 가져옴
+    try:
+        s_ws = get_schedules_ws()
+        b_ws = get_bookings_ws()
+        s_values = s_ws.get_all_values()
+        b_values = b_ws.get_all_values()
+        schedules = _parse_records(s_values)
+        bookings = _parse_records(b_values)
+    except Exception:
+        # fallback
+        s_ws = sh.worksheet('schedules')
+        b_ws = sh.worksheet('bookings')
+        schedules = s_ws.get_all_records()
+        bookings = b_ws.get_all_records()
+
     _data_cache['schedules'] = schedules
     _data_cache['bookings'] = bookings
     _data_cache['time'] = now
     return schedules, bookings
+
+
+def next_id_from_cache(records):
+    """캐시된 records에서 다음 ID 계산 (API 호출 불필요)"""
+    if not records:
+        return 1
+    ids = [int(r['id']) for r in records if r.get('id')]
+    return max(ids) + 1 if ids else 1
 
 
 def next_id(ws):
@@ -152,8 +200,7 @@ def book():
     schedule_id = request.form['schedule_id']
     name = request.form['name']
     phone = request.form['phone']
-    script_url = request.form.get('script_url', '')
-    benchmark_url = request.form.get('benchmark_url', '')
+    notion_url = request.form.get('notion_url', '')
 
     schedules = get_all_schedules()
     schedule = None
@@ -171,9 +218,9 @@ def book():
         return '해당 시간은 이미 마감되었습니다.', 400
 
     ws = get_bookings_ws()
-    new_id = next_id(ws)
+    new_id = next_id_from_cache(bookings)
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    ws.append_row([new_id, int(schedule_id), name, phone, schedule['date'], now, schedule['time'], script_url, benchmark_url])
+    ws.append_row([new_id, int(schedule_id), name, phone, schedule['date'], now, schedule['time'], notion_url])
     invalidate_cache()
 
     return render_template('confirm.html',
@@ -241,7 +288,7 @@ def bulk_add():
     ws = get_schedules_ws()
     existing = get_all_schedules()
     existing_set = {(s['date'], s['time']) for s in existing}
-    new_id = next_id(ws)
+    new_id = next_id_from_cache(existing)
 
     rows_to_add = []
     current = start_dt
@@ -273,7 +320,7 @@ def bulk_add():
 @app.route('/admin/toggle-close/<int:sid>', methods=['POST'])
 def toggle_close(sid):
     ws = get_schedules_ws()
-    records = ws.get_all_records()
+    records = get_all_schedules()
     for i, s in enumerate(records):
         if int(s['id']) == sid:
             row_num = i + 2  # 헤더 제외
@@ -288,7 +335,7 @@ def toggle_close(sid):
 def delete_schedule(sid):
     # 스케줄만 삭제 (예약 데이터는 보존)
     ws = get_schedules_ws()
-    records = ws.get_all_records()
+    records = get_all_schedules()
     for i, s in enumerate(records):
         if int(s['id']) == sid:
             ws.delete_rows(i + 2)
@@ -304,7 +351,7 @@ def bulk_delete():
     end = request.form['end_date']
 
     ws = get_schedules_ws()
-    records = ws.get_all_records()
+    records = get_all_schedules()
     rows_to_delete = []
     for i, s in enumerate(records):
         if start <= s['date'] <= end:
@@ -320,7 +367,7 @@ def bulk_delete():
 @app.route('/admin/delete-booking/<int:bid>', methods=['POST'])
 def delete_booking(bid):
     ws = get_bookings_ws()
-    records = ws.get_all_records()
+    records = get_all_bookings()
     for i, b in enumerate(records):
         if int(b['id']) == bid:
             ws.delete_rows(i + 2)
