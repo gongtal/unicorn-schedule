@@ -88,12 +88,24 @@ def next_id_from_cache(records):
 
 # ── 데이터 로드/캐시 ──
 
+def _normalize_booking(b):
+    """예약 레코드의 링크 필드를 notion_url로 통일"""
+    notion = str(b.get('notion_url', '') or '').strip()
+    if not notion:
+        # 이전 필드명에서 가져오기
+        notion = str(b.get('script_url', '') or '').strip()
+    if not notion:
+        notion = str(b.get('benchmark_url', '') or '').strip()
+    b['notion_url'] = notion
+    return b
+
+
 def _fetch_and_cache():
     """Google Sheets에서 데이터를 동기적으로 가져와 캐시 저장"""
     s_ws = get_schedules_ws()
     b_ws = get_bookings_ws()
     schedules = s_ws.get_all_records()
-    bookings = b_ws.get_all_records()
+    bookings = [_normalize_booking(b) for b in b_ws.get_all_records()]
     with _cache_lock:
         _data_cache['schedules'] = schedules
         _data_cache['bookings'] = bookings
