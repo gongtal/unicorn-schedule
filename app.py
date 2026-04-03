@@ -166,8 +166,27 @@ def get_all_bookings():
     return data[1]
 
 
-# 서버 시작 시 캐시 워밍업 + 예약현황 시트 초기화
+def _fix_bookings_headers():
+    """bookings 시트 헤더를 최신 스키마로 맞춤 (script_url/benchmark_url → notion_url)"""
+    try:
+        ws = get_bookings_ws()
+        headers = ws.row_values(1)
+        updated = False
+        # H열(8번째): notion_url로 통일
+        if len(headers) >= 8 and headers[7] != 'notion_url':
+            ws.update_cell(1, 8, 'notion_url')
+            updated = True
+        # I열(9번째, benchmark_url): 있으면 삭제하지 않되 데이터는 유지
+        if len(headers) < 8:
+            ws.update_cell(1, 8, 'notion_url')
+            updated = True
+    except Exception:
+        pass
+
+
+# 서버 시작 시 헤더 수정 + 캐시 워밍업 + 예약현황 시트 초기화
 try:
+    _fix_bookings_headers()
     _fetch_and_cache()
     threading.Thread(target=_update_summary_sheet, daemon=True).start()
 except Exception:
